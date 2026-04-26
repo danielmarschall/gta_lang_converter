@@ -80,3 +80,15 @@ __recovery/
 
 # Boss dependency manager vendor folder https://github.com/HashLoad/boss
 modules/
+
+
+
+GTA1/fxt_original/*.FXT
+GTA1/fxt_original/*.fxt
+GTA1/fxt_original/*.TXT
+GTA1/fxt_original/*.txt
+
+GTA2/gxt_original/*.GXT
+GTA2/gxt_original/*.gxt
+GTA2/gxt_original/*.TXT
+GTA2/gxt_original/*.txt
