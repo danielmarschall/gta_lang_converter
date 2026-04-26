@@ -115,7 +115,7 @@
         <DelphiCompile Include="$(MainSource)">
             <MainSource>MainSource</MainSource>
         </DelphiCompile>
-        <RcItem Include="..\..\files\GTADATA\KANJI.IDX">
+        <RcItem Include="KANJI.IDX">
             <ContainerId>ResourceItem</ContainerId>
             <ResourceType>RCDATA</ResourceType>
             <ResourceId>KANJI_IDX</ResourceId>
@@ -163,7 +163,7 @@
                         <Overwrite>true</Overwrite>
                     </Platform>
                 </DeployFile>
-                <DeployFile LocalName="..\..\files\GTADATA\KANJI.IDX" Configuration="Debug" Class="ProjectFile">
+                <DeployFile LocalName="KANJI.IDX" Configuration="Debug" Class="ProjectFile">
                     <Platform Name="Win32">
                         <RemoteDir>.\</RemoteDir>
                         <Overwrite>true</Overwrite>
