@@ -29,10 +29,8 @@ int16	64 00 (version = 100)
 Section
 -------
 
-char[4]	<section type name>, e.g. "TKEY" or "TDAT"
+char[4]	<section type name>, "TKEY" or "TDAT"
 int32	length of <section content>
-int32	unknown (always 0)
-	<section content>
 
 Section type: TKEY (contains key names)
 ---------------------------------------
@@ -41,7 +39,7 @@ int32	<rel. offset>
 char[8]	<zero terminated key name>
 int32	<rel. offset>
 char[8]	<zero terminated key name>
-	...
+    	...
 
 Since the key is zero terminated, the max key length is 7 characters.
 <rel. offset> is the offset of the string, relative
@@ -86,7 +84,7 @@ Section type: TDAT (contains texts)
 		- An UTF-16 encoded ASCII character
 		- An shift-JIS encoded character
 
-	Currently, I have no information about the encoding of the Russian version of the game.
+	Currently, I have no information about the encoding of the Russian version of the game. (Help wanted!)
 
 * The captions usually don't have foreign characters.
 
@@ -101,7 +99,54 @@ Section type: TDAT (contains texts)
 	#B = switch to blue text
 	#G = switch to green text
 
-Help wanted!
-------------
+Kanji.dat
+=========
 
-I am searching for the Russian and Japanese language files and their encoding.
+Files
+C:\GTA2\data\kanji.dat
+
+These files contain the implemented Japanese glyphs.
+
+File structure
+--------------
+
+<header>
+<section>
+<section>
+...
+
+Header
+------
+
+char[3]	"KAN"
+char[1]	"J" (Language)
+int16	64 00 (version = 100)
+
+Section
+-------
+
+char[4]	<section type name>, "KIDX" or "KBIT"
+int32	length of <section content>
+
+Section type: KIDX (index of Kanji characters)
+----------------------------------------------
+
+This sections always has a length of 0x20000.
+
+The index works as follows:
+
+                *2                      read                    *32                    render
+Shift-JIS 81 5B  →  IDX Offset 01 02 B6   →  IDX Contents 78 00  →  BIT Index 00 0F 00   →   16x16 Glyph ー
+Shift-JIS 82 CC  →  IDX Offset 01 05 98   →  IDX Contents E9 01  →  BIT Index 00 3D 20   →   16x16 Glyph の
+Shift-JIS 83 4E  →  IDX Offset 01 06 9C   →  IDX Contents 6B 02  →  BIT Index 00 4D 60   →   16x16 Glyph ク
+Shift-JIS 83 8C  →  IDX Offset 01 07 18   →  IDX Contents A9 02  →  BIT Index 00 55 20   →   16x16 Glyph レ
+Shift-JIS 83 8D  →  IDX Offset 01 07 1A   →  IDX Contents AA 02  →  BIT Index 00 55 40   →   16x16 Glyph ロ
+
+Section type: KBIT (glyphs)
+---------------------------
+
+Each glyph has a size of 16x16 pixels and takes 32 bytes.
+The encoding is raw, 1 bit per pixel.
+
+
+TODO: Check is it really a 16x16 glyph?
