@@ -921,12 +921,10 @@ var
             if not (Sjis in [{ $0A, $0D, }$20]) and not IsKanjiValid(KanjiIdx, Sjis) then
             begin
               // BUG IN J.GXT: SJIS 0x8140 : IDEOGRAPHIC SPACE (U+3000), not in Kanji.dat
-              if Sjis = $8140 then msg[j] := ' ' // silently fix it by replacing it with a normal space
-              // BUG IN J.GXT: SJIS 0x9A6B : 嗅	smell, scent, sniff; olfactive (U+55C5) not in Kanji.dat
-              //                             [3333] m!朝からゴムの香りを嗅ぐのはいい気分なのデス！
-              //                             TODO: In the inofficial language patch, it should be replaced with (Hiragana character):
-              //                             [3333] m!朝からゴムの香りをかぐのはいい気分なのデス！
-              else WriteLn(Format(S_IllegalKanji, ['0x' + IntToHex(Sjis, 4)]));
+              if Sjis = $8140 then
+                msg[j] := ' ' // silently fix it by replacing it with a normal space
+              else
+                WriteLn(Format(S_IllegalKanji, ['0x' + IntToHex(Sjis, 4)]));
             end;
           end;
 
@@ -1344,25 +1342,30 @@ begin
   {$ENDIF}
 end;
 
+function GuessOrAskForLanguage(const InFile: string): Char;
+var
+  chTmp: Char;
+  sTmp: string;
+begin
+  Result := ' ';
+  for chTmp in ['E', 'G', 'F', 'I', 'S', 'R', 'J'] do
+    if SameText(ExtractFileName(InFile), chTmp + '.TXT') or SameText(ExtractFileName(InFile), 'BOB_' + chTmp + '.TXT') then Result := chTmp;
+  while not CharInSet(Result, ['E', 'G', 'F', 'I', 'S', 'R', 'J']) do
+  begin
+    WriteLn(Format(S_ENTER_LANGUAGE, [InFile]));
+    ReadLn(sTmp);
+    if sTmp = '' then sTmp := ' ';
+    Result := UpCase(sTmp[1]);
+  end;
+end;
+
 {$IFDEF MSWINDOWS}
 procedure ProcessFile(const InFile: string; var RequirePause: boolean);
 var
   Lang: Char;
-  chTmp: Char;
-  sTmp: string;
 begin
   try
-    Lang := ' ';
-    for chTmp in ['E', 'G', 'F', 'I', 'S', 'R', 'J'] do
-      if SameText(ExtractFileName(InFile), chTmp + '.TXT') or SameText(ExtractFileName(InFile), 'BOB_' + chTmp + '.TXT') then Lang := chTmp;
-    while not CharInSet(Lang, ['E', 'G', 'F', 'I', 'S', 'R', 'J']) do
-    begin
-      WriteLn(Format(S_ENTER_LANGUAGE, [InFile]));
-      ReadLn(sTmp);
-      if sTmp = '' then sTmp := ' ';
-      Lang := UpCase(sTmp[1]);
-    end;
-
+    Lang := GuessOrAskForLanguage(InFile);
          if ExtractFileExt(InFile)         = '.gxt'  then GxtToTxt(InFile, ChangeFileExt(InFile, '.txt'))
     else if ExtractFileExt(InFile)         = '.GXT'  then GxtToTxt(InFile, ChangeFileExt(InFile, '.TXT'))
     else if SameText(ExtractFileExt(InFile), '.gxt') then GxtToTxt(InFile, ChangeFileExt(InFile, '.txt'))
@@ -1470,7 +1473,7 @@ begin
   if ParamCount >= 3 then
     Lang := ParamStr(3)[1]
   else
-    Lang := 'E';
+    Lang := GuessOrAskForLanguage(InFile);
 
   if ParamCount >= 2 then
     OutFile := ParamStr(2)

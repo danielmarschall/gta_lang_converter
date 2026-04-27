@@ -654,12 +654,6 @@ begin
       end
       else
       begin
-        // TODO: DOSDATA_JAPAN.TXT and DOSDATA_JAPUK.TXT fan-translation needs the following fixes:
-        //       ﾀ	HALFWIDTH KATAKANA LETTER TA (U+FF80)	c0
-        //       ｸ	HALFWIDTH KATAKANA LETTER KU (U+FF78)	b8
-        //       Better translate with:
-        //       Search:   ﾀｸビットDMAチャネルを選択：
-        //       Replace:  16ビットDMAチャネルを選択：
         if not (Value in [$0A, $0D, $20]) and not IsKanjiValid(KanjiIdx, Value) then
           WriteLn(Format(S_IllegalKanji, ['0x' + IntToHex(Value, 4)]));
       end;
