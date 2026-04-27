@@ -3,7 +3,7 @@
 {
   FXT<=>TXT converter for GTA1 and GTA1 London
   by Daniel Marschall
-  Revision: 13 April 2026
+  Revision: 27 April 2026
   Licensed under the terms of the Apache 2.0 license
   Source code compatible with Delphi for Win32/64, and FreePascal for Debian Linux
   More information here: https://misc.daniel-marschall.de/spiele/gta1/format_fxt.html
@@ -43,7 +43,7 @@ resourcestring
   {$ENDIF}
   S_INTRO_1 = 'FXT<>TXT Converter for GTA 1 and GTA London (Unicode Version)';
   S_INTRO_2 = 'by Daniel Marschall';
-  S_INTRO_3 = 'Revision: 13 April 2026';
+  S_INTRO_3 = 'Revision: 27 April 2026';
   S_INTRO_4 = 'Licensed under the terms of the Apache 2.0 license';
   S_USAGE = 'Usage:';
   S_IllegalKanji = 'Warning: Illegal character not in Kanji.idx: %s';
@@ -414,7 +414,7 @@ begin
     SetLength(Result, ResStream.Size);
     ResStream.ReadBuffer(Result[0], ResStream.Size);
   finally
-    ResStream.Free;
+    FreeAndNil(ResStream);
   end;
 {$ENDIF}
 end;
@@ -425,6 +425,7 @@ var
   Entry: Word;
 begin
   Offset := Value * 2;
+  if Offset < $FF then Offset := Offset shl 8; // TODO: this is weird! adjust the documentation?!
   if Offset + 1 >= Length(Data) then
     Exit(False);
   Entry := PWord(@Data[Offset])^;
@@ -650,6 +651,17 @@ begin
         WriteToOutput($FF - SjisX);
         WriteToOutput($FF - SjisY);
         Continue;
+      end
+      else
+      begin
+        // TODO: DOSDATA_JAPAN.TXT and DOSDATA_JAPUK.TXT fan-translation needs the following fixes:
+        //       ﾀ	HALFWIDTH KATAKANA LETTER TA (U+FF80)	c0
+        //       ｸ	HALFWIDTH KATAKANA LETTER KU (U+FF78)	b8
+        //       Better translate with:
+        //       Search:   ﾀｸビットDMAチャネルを選択：
+        //       Replace:  16ビットDMAチャネルを選択：
+        if not (Value in [$0A, $0D, $20]) and not IsKanjiValid(KanjiIdx, Value) then
+          WriteLn(Format(S_IllegalKanji, ['0x' + IntToHex(Value, 4)]));
       end;
     end
     else

@@ -142,11 +142,13 @@ Shift-JIS 83 4E  →  IDX Offset 01 06 9C   →  IDX Contents 6B 02  →  BIT In
 Shift-JIS 83 8C  →  IDX Offset 01 07 18   →  IDX Contents A9 02  →  BIT Index 00 55 20   →   16x16 Glyph レ
 Shift-JIS 83 8D  →  IDX Offset 01 07 1A   →  IDX Contents AA 02  →  BIT Index 00 55 40   →   16x16 Glyph ロ
 
+See also:
+- Implemented glyphs: https://misc.daniel-marschall.de/spiele/gta1/kanji_valid.txt
+- All glyphs as PNG (16x80640 image might be displayed wrong in the browser): https://misc.daniel-marschall.de/spiele/gta1/files/GTADATA/KANJI_BIT.PNG
+- List of all Shift-JIS code points: https://misc.daniel-marschall.de/spiele/gta1/shift_jis.txt
+
 Section type: KBIT (glyphs)
 ---------------------------
 
 Each glyph has a size of 16x16 pixels and takes 32 bytes.
 The encoding is raw, 1 bit per pixel.
-
-
-TODO: Check is it really a 16x16 glyph?

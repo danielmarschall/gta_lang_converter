@@ -1,0 +1,48 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{4397E584-C93F-4B2B-8E3C-27F338613546}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="GTA1\FxtToolUnicode.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="GTA2\GxtToolUnicode.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="FxtToolUnicode">
+        <MSBuild Projects="GTA1\FxtToolUnicode.dproj"/>
+    </Target>
+    <Target Name="FxtToolUnicode:Clean">
+        <MSBuild Projects="GTA1\FxtToolUnicode.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="FxtToolUnicode:Make">
+        <MSBuild Projects="GTA1\FxtToolUnicode.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="GxtToolUnicode">
+        <MSBuild Projects="GTA2\GxtToolUnicode.dproj"/>
+    </Target>
+    <Target Name="GxtToolUnicode:Clean">
+        <MSBuild Projects="GTA2\GxtToolUnicode.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="GxtToolUnicode:Make">
+        <MSBuild Projects="GTA2\GxtToolUnicode.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="FxtToolUnicode;GxtToolUnicode"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="FxtToolUnicode:Clean;GxtToolUnicode:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="FxtToolUnicode:Make;GxtToolUnicode:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

@@ -3,18 +3,16 @@
 {
   GXT<=>TXT converter for GTA2
   by Daniel Marschall
-  Revision: 26 April 2026
+  Revision: 27 April 2026
   Licensed under the terms of the Apache 2.0 license
   Source code compatible with Delphi for Win32/64, and FreePascal for Debian Linux
   More information here: https://misc.daniel-marschall.de/spiele/gta2/
 }
 
-// TODO: ... see more TODOs below
-// TODO: Implement/Research Russian
-// TODO: Implement/Research Japanese Kanji Validation
-// TODO: Test FPC
+// TODO: Code aufräumen / unnötige Funktionen
 
 {$IFDEF FPC}
+  // TODO: Test FPC
   {$mode delphi}
   {$H+}
 {$ELSE}
@@ -51,11 +49,96 @@ resourcestring
   {$ENDIF}
   S_INTRO_1 = 'GXT<>TXT Converter for GTA 2 (Unicode Version)';
   S_INTRO_2 = 'by Daniel Marschall';
-  S_INTRO_3 = 'Revision: 26 April 2026';
+  S_INTRO_3 = 'Revision: 27 April 2026';
   S_INTRO_4 = 'Licensed under the terms of the Apache 2.0 license';
   S_USAGE = 'Usage:';
   S_IllegalKanji = 'Warning: Illegal character not in Kanji.dat: %s';
   S_IllegalEuropeanChar = 'Warning: Illegal European character: %s';
+
+// --- GTA2 Specific
+
+const
+  GXT_MAGIC = 'GBL';
+  GXT_VER = 100;
+  KAN_MAGIC = 'KAN';
+  KAN_VER = 100;
+
+  MAX_KEY_SIZE = 8;
+  EU_Charset_Convert: array[0..48,0..1] of AnsiChar = (
+        (#$80, #$C0),
+        (#$81, #$C1),
+        (#$82, #$C2),
+        (#$83, #$C4),
+        (#$84, #$C6),
+        (#$85, #$C7),
+        (#$86, #$C8),
+        (#$87, #$C9),
+        (#$88, #$CA),
+        (#$89, #$CB),
+        (#$8A, #$CC),
+        (#$8B, #$CD),
+        (#$8C, #$CE),
+        (#$8D, #$CF),
+        (#$8E, #$D2),
+        (#$8F, #$D3),
+        (#$90, #$D4),
+        (#$91, #$D6),
+        (#$92, #$D9),
+        (#$93, #$DA),
+        (#$94, #$DB),
+        (#$95, #$DC),
+        (#$96, #$DF),
+        (#$97, #$E0),
+        (#$98, #$E1),
+        (#$99, #$E2),
+        (#$9A, #$E4),
+        (#$9B, #$E6),
+        (#$9C, #$E7),
+        (#$9D, #$E8),
+        (#$9E, #$E9),
+        (#$9F, #$EA),
+        (#$A0, #$EB),
+        (#$A1, #$EC),
+        (#$A2, #$ED),
+        (#$A3, #$EE),
+        (#$A4, #$EF),
+        (#$A5, #$F2),
+        (#$A6, #$F3),
+        (#$A7, #$F4),
+        (#$A8, #$F6),
+        (#$A9, #$F9),
+        (#$AA, #$FA),
+        (#$AB, #$FB),
+        (#$AC, #$FC),
+        (#$AD, #$D1),
+        (#$AE, #$F1),
+        (#$AF, #$BF),
+        (#$B0, #$A1)
+  );
+
+type
+  TGTA2Header = packed record
+    magic: array[0..2] of AnsiChar; // always "GBL"
+    lang: AnsiChar; // E,G,F,I,S,R,J
+    version: word // always 64 00 = 100
+  end;
+
+  TGTA2SectionHeader = packed record
+    sectionKey: array[0..3] of AnsiChar; // TKEY/TDAT (*.gxt), KIDX/KBIT (kanji.dat)
+    sectionLength: Cardinal;
+  end;
+
+  TKEYEntry = packed record
+    relDataOffset: Cardinal;
+    key: array[0..MAX_KEY_SIZE-1] of AnsiChar;
+  end;
+
+  TGTAMessage = record
+    key: AnsiString;
+    guy: AnsiChar;
+    msg: WideString;
+  end;
+  TGTAMessagesArray = array of TGTAMessage;
 
 // --- Encoding Stuff
 
@@ -92,6 +175,7 @@ var
 begin
   Len := Length(S) * SizeOf(Char); // Char = WideChar = 2 bytes
 
+  Result := nil;
   SetLength(Result, Len);
 
   if Len > 0 then
@@ -434,22 +518,72 @@ end;
 // --- Japanese Kanji Methods
 
 function LoadKanjiDat: TBytes;
+
+  function ParseKanjiDat(fs: TStream): TBytes;
+  var
+    filHead: TGTA2Header;
+    secHead: TGTA2SectionHeader;
+    extra: integer;
+  begin
+    fs.Position := 0;
+
+    fs.Read(filHead, SizeOf(filHead));
+
+    // Optional checks
+    if filHead.magic <> KAN_MAGIC then
+      raise Exception.Create('ERROR: Magic header "'+KAN_MAGIC+'" missing.');
+    if filHead.lang <> 'J' then
+      raise Exception.Create('ERROR: Language must be "J".');
+    if filHead.version <> KAN_VER then
+      raise Exception.Create('ERROR: GXT version doesn''t has the value '+IntToStr(KAN_VER)+'.');
+    fs.Seek(SizeOf(filHead), soFromBeginning);
+    while fs.Position < fs.Size do
+    begin
+      fs.Read(secHead, SizeOf(secHead));
+      if (secHead.sectionKey <> 'KIDX') and (secHead.sectionKey <> 'KBIT') then
+        WriteLn('Attention: Unknown section type '+secHead.sectionKey);
+      fs.Seek(secHead.sectionLength, soCurrent);
+    end;
+    extra := fs.Position - fs.Size;
+    if extra > 0 then
+      WriteLn('Attention: Extra bytes at end of file: ' + IntToStr(extra));
+
+    // Step 1: Only read KIDX
+    fs.Seek(SizeOf(filHead), soFromBeginning);
+    while fs.Position < fs.Size do
+    begin
+      fs.Read(secHead, SizeOf(secHead));
+      if secHead.sectionKey = 'KIDX' then Break;
+      fs.Seek(secHead.sectionLength, soCurrent);
+    end;
+    if secHead.sectionKey <> 'KIDX' then
+    begin
+      raise Exception.Create('ERROR: "KIDX" not found');
+    end;
+    Result := nil;
+    SetLength(Result, secHead.sectionLength);
+    fs.ReadBuffer(Result[0], secHead.sectionLength);
+  end;
+
 {$IFDEF FPC}
 var
+  FileStream: TFileStream;
   FileName: string;
 begin
   FileName := ExtractFilePath(ParamStr(0)) + 'kanji.dat'; // do not localize
-  Result := ReadAllBytesFromFile(FileName);
-  if (Length(Result) > 0) and ((Length(Result) mod 2) <> 0) then
-    raise Exception.CreateFmt('Invalid kanji.dat size: %s', [FileName]);
+  FileStream := TFileStream.Create(FileName, fmOpenRead);
+  try
+    Result := ParseKanjiDat(FileStream);
+  finally
+    FreeAndNil(FileStream);
+  end;
 {$ELSE}
 var
   ResStream: TResourceStream;
 begin
   ResStream := TResourceStream.Create(HInstance, 'KANJI_DAT', RT_RCDATA); // do not localize
   try
-    SetLength(Result, ResStream.Size);
-    ResStream.ReadBuffer(Result[0], ResStream.Size);
+    Result := ParseKanjiDat(ResStream);
   finally
     FreeAndNil(ResStream);
   end;
@@ -457,103 +591,18 @@ begin
 end;
 
 function IsKanjiValid(const Data: TBytes; Value: Word): Boolean;
-(*
 var
   Offset: Integer;
   Entry: Word;
-*)
 begin
-  Result := true; // TODO: Implement. First, find out how kanji.dat works
-  (* GTA1 Kanji.idx worked like this:
   Offset := Value * 2;
+  if Offset < $FF then Offset := Offset shl 8; // TODO: this is weird! adjust the documentation?!
   if Offset + 1 >= Length(Data) then
     Exit(False);
   Entry := PWord(@Data[Offset])^;
   Result := Entry <> $FFFF;
-  *)
 end;
 
-// --- GTA2 Specific
-
-const
-  MAX_KEY_SIZE = 8;
-  GXT_MAGIC = 'GBL';
-  GXT_VER = 100;
-  EU_Charset_Convert: array[0..48,0..1] of WideChar = (
-        (#$80, #$C0),
-        (#$81, #$C1),
-        (#$82, #$C2),
-        (#$83, #$C4),
-        (#$84, #$C6),
-        (#$85, #$C7),
-        (#$86, #$C8),
-        (#$87, #$C9),
-        (#$88, #$CA),
-        (#$89, #$CB),
-        (#$8A, #$CC),
-        (#$8B, #$CD),
-        (#$8C, #$CE),
-        (#$8D, #$CF),
-        (#$8E, #$D2),
-        (#$8F, #$D3),
-        (#$90, #$D4),
-        (#$91, #$D6),
-        (#$92, #$D9),
-        (#$93, #$DA),
-        (#$94, #$DB),
-        (#$95, #$DC),
-        (#$96, #$DF),
-        (#$97, #$E0),
-        (#$98, #$E1),
-        (#$99, #$E2),
-        (#$9A, #$E4),
-        (#$9B, #$E6),
-        (#$9C, #$E7),
-        (#$9D, #$E8),
-        (#$9E, #$E9),
-        (#$9F, #$EA),
-        (#$A0, #$EB),
-        (#$A1, #$EC),
-        (#$A2, #$ED),
-        (#$A3, #$EE),
-        (#$A4, #$EF),
-        (#$A5, #$F2),
-        (#$A6, #$F3),
-        (#$A7, #$F4),
-        (#$A8, #$F6),
-        (#$A9, #$F9),
-        (#$AA, #$FA),
-        (#$AB, #$FB),
-        (#$AC, #$FC),
-        (#$AD, #$D1),
-        (#$AE, #$F1),
-        (#$AF, #$BF),
-        (#$B0, #$A1)
-  );
-
-type
-  TGTAMessage = record
-    key: AnsiString;
-    guy: AnsiChar;
-    msg: WideString;
-  end;
-  TGTAMessagesArray = array of TGTAMessage;
-
-  TGXTHeader = packed record
-    magic: array[0..2] of AnsiChar; // always "GBL"
-    lang: AnsiChar; // E,G,F,I,S,J
-    version: word // always 64 00 = 100
-  end;
-
-  TGXTSectionHeader = packed record
-    sectionKey: array[0..3] of AnsiChar; // TKEY or TDAT
-    sectionLength: Cardinal;
-  end;
-
-  TKEY = packed record
-    relDataOffset: Cardinal;
-    key: array[0..MAX_KEY_SIZE-1] of AnsiChar;
-  end;
 
 
 // --- GXT/TXT Converter Methods
@@ -612,13 +661,23 @@ procedure GxtToTxt(const InFile, OutFile: string);
     begin
       for j := Low(EU_Charset_Convert) to High(EU_Charset_Convert) do
       begin
-        if result[i] = EU_Charset_Convert[j][0] then
+        if Ord(result[i]) = Ord(EU_Charset_Convert[j][0]) then
         begin
-          result[i] := EU_Charset_Convert[j][1];
+          result[i] := WideChar(Ord(EU_Charset_Convert[j][1]));
           break;
         end;
       end;
     end;
+  end;
+
+  function BytesToWideStringRaw(const Bytes: TBytes): WideString;
+  var
+    Len: Integer;
+  begin
+    Len := Length(Bytes) div 2; // each WideChar = 2 bytes
+    SetLength(Result, Len);
+    if Len > 0 then
+      Move(Bytes[0], Result[1], Len * SizeOf(WideChar));
   end;
 
   type
@@ -631,46 +690,44 @@ procedure GxtToTxt(const InFile, OutFile: string);
   var
     numEntries: integer;
     i: integer;
-    filHead: TGXTHeader;
-    tkAry: array of TKEY;
+    filHead: TGTA2Header;
+    tkAry: array of TKEYEntry;
     tkLen: integer;
-    secHead: TGXTSectionHeader;
+    secHead: TGTA2SectionHeader;
     ws: WideString;
     extra: integer;
     p: pByte;
     op: PWideChar;
     msgBytes: TBytes;
     len: integer;
-    ap: PAnsiChar;
+    s: String;
   begin
     fs.Position := 0;
 
     fs.Read(filHead, SizeOf(filHead));
 
-    if filHead.magic <> GXT_MAGIC then
-    begin
-      raise Exception.Create('ERROR: Magic header "'+GXT_MAGIC+'" missing.');
-    end;
     result.Language := filHead.lang;
+
+    if result.Language = 'R' then
+      raise Exception.Create('Russian language not implemented yet'); // TODO: Implement Russian
+
+
+    // Optional checks
+    if filHead.magic <> GXT_MAGIC then
+      raise Exception.Create('ERROR: Magic header "'+GXT_MAGIC+'" missing.');
     if filHead.version <> GXT_VER then
-    begin
       raise Exception.Create('ERROR: GXT version doesn''t has the value '+IntToStr(GXT_VER)+'.');
-    end;
     fs.Seek(SizeOf(filHead), soFromBeginning);
     while fs.Position < fs.Size do
     begin
       fs.Read(secHead, SizeOf(secHead));
       if (secHead.sectionKey <> 'TKEY') and (secHead.sectionKey <> 'TDAT') then
-      begin
         WriteLn('Attention: Unknown section type '+secHead.sectionKey);
-      end;
       fs.Seek(secHead.sectionLength, soCurrent);
     end;
     extra := fs.Position - fs.Size;
     if extra > 0 then
-    begin
       WriteLn('Attention: Extra bytes at end of file: ' + IntToStr(extra));
-    end;
 
     // Step 1: Collect all keys
     fs.Seek(SizeOf(filHead), soFromBeginning);
@@ -685,7 +742,7 @@ procedure GxtToTxt(const InFile, OutFile: string);
       raise Exception.Create('ERROR: "TKEY" not found');
     end;
     tkLen := secHead.sectionLength;
-    numEntries := tkLen div SizeOf(TKEY);
+    numEntries := tkLen div SizeOf(TKEYEntry);
     SetLength(tkAry, numEntries);
     fs.Read(tkAry[0], tkLen);
 
@@ -740,15 +797,17 @@ procedure GxtToTxt(const InFile, OutFile: string);
         end;
       end;
 
+      //result.Messages[i].msg := TEncoding.Unicode.GetString(msgBytes);
+      result.Messages[i].msg := BytesToWideStringRaw(msgBytes);
 
-      result.Messages[i].msg := TEncoding.Unicode.GetString(msgBytes);
       if filHead.lang = 'J' then
         result.Messages[i].msg := GTA2toANSI_J(result.Messages[i].msg)
       else
         result.Messages[i].msg := GTA2toANSI_EU(result.Messages[i].msg);
 
-      ap := PAnsiChar(AnsiString(tkAry[i].key));
-      result.Messages[i].key := ap;
+      s := string(PAnsiChar(@tkAry[i].key[0])); // stops at #0
+      s := StringReplace(s, #$81#$5E, '/', []); // Bugfix BOB_J.GXT translated "/" to "／" in the key!
+      result.Messages[i].key := AnsiString(s);
     end;
   end;
 
@@ -813,13 +872,14 @@ procedure TxtToGxt(const InFile, OutFile: string; Language: Char);
       begin
         ch := s[i];
 
-        { ASCII stays UTF-16 ASCII }
         if Ord(ch[1]) <= $7F then
         begin
+          { ASCII stays UTF-16 ASCII }
           Result := Result + WideChar(Ord(ch[1]));
         end
         else
         begin
+          { Rest becomes Shift-JIS, but always 16 bit }
           b := enc.GetBytes(ch);
 
           if Length(b) = 1 then
@@ -844,9 +904,9 @@ procedure TxtToGxt(const InFile, OutFile: string; Language: Char);
     begin
       for j := Low(EU_Charset_Convert) to High(EU_Charset_Convert) do
       begin
-        if result[i] = EU_Charset_Convert[j][1] then
+        if Ord(result[i]) = Ord(EU_Charset_Convert[j][1]) then
         begin
-          result[i] := EU_Charset_Convert[j][0];
+          result[i] := WideChar(Ord(EU_Charset_Convert[j][0]));
           break;
         end;
       end;
@@ -868,9 +928,18 @@ procedure TxtToGxt(const InFile, OutFile: string; Language: Char);
     curoffset: Cardinal;
     curkey: AnsiString;
     msKey, msDat: TMemoryStream;
-    gxtHead: TGXTHeader;
-    secHead: TGXTSectionHeader;
+    gxtHead: TGTA2Header;
+    secHead: TGTA2SectionHeader;
+    j: integer;
+    sjis: word;
+    kanjiidx: TBytes;
   begin
+    if lang = 'J' then
+      KanjiIdx := LoadKanjiDat;
+
+    if lang = 'R' then
+      raise Exception.Create('Russian language not implemented yet'); // TODO: Implement Russian
+
     msKey := TMemoryStream.Create;
     msDat := TMemoryStream.Create;
     try
@@ -889,10 +958,30 @@ procedure TxtToGxt(const InFile, OutFile: string; Language: Char);
         curkey := AnsiString(ZeroPad(string(messages[i].key), MAX_KEY_SIZE));
         msKey.Write(curkey[1], Length(curkey)*SizeOf(AnsiChar));
 
-        if Language = 'J' then
-          msg := ANSItoGTA2_J(messages[i].msg) + #0
+        if lang = 'J' then
+        begin
+          msg := ANSItoGTA2_J(messages[i].msg);
+
+          for j := Low(msg) to High(msg) do
+          begin
+            Sjis := Word(Cardinal(msg[j]));
+            if not (Sjis in [$0A, $0D, $20]) and not IsKanjiValid(KanjiIdx, Sjis) then
+            begin
+              // BUG IN J.GXT: SJIS 0x8140 : IDEOGRAPHIC SPACE (U+3000), not in Kanji.dat
+              //                             TODO: In the inofficial language patch, it should be replaced with a normal space
+              // BUG IN J.GXT: SJIS 0x9A6B : 嗅	smell, scent, sniff; olfactive (U+55C5) not in Kanji.dat
+              //                             [3333] m!朝からゴムの香りを嗅ぐのはいい気分なのデス！
+              //                             TODO: In the inofficial language patch, it should be replaced with (Hiragana character):
+              //                             [3333] m!朝からゴムの香りをかぐのはいい気分なのデス！
+              WriteLn(Format(S_IllegalKanji, ['0x' + IntToHex(Sjis, 4)]));
+            end;
+          end;
+
+        end
         else
-          msg := ANSItoGTA2_EU(messages[i].msg) + #0;
+          msg := ANSItoGTA2_EU(messages[i].msg);
+
+        msg := msg + #0;
 
         if messages[i].guy <> #0 then
         begin
@@ -930,7 +1019,7 @@ procedure TxtToGxt(const InFile, OutFile: string; Language: Char);
   var
     p: integer;
     key: AnsiString;
-    msg: string;
+    msg: WideString;
     guy: AnsiChar;
   begin
     result := false;
@@ -989,9 +1078,9 @@ procedure TxtToGxt(const InFile, OutFile: string; Language: Char);
   begin
     S := BytesToRawString(B);
 
-    if IsUtf8 then
+    if Info.IsUtf8 then
       Result := UTF8Decode(S)
-    else if IsJapanese then
+    else if Info.IsJapanese then
       Result := UTF8Decode(CP932ToUTF8(S))
     else
       Result := UTF8Decode(ISO_8859_1ToUTF8(S));
@@ -1035,11 +1124,7 @@ procedure TxtToGxt(const InFile, OutFile: string; Language: Char);
 
 var
   InBytes, OutBytes: TBytes;
-  Value: Integer;
-  IsJapanese: Boolean;
   Info: TFileEncInfo;
-  Sjis: Word;
-  KanjiIdx: TBytes;
   S: UnicodeString;
   slIn: TStringList;
   i: integer;
@@ -1049,9 +1134,6 @@ var
 begin
   Info := DetectFileEncoding(InFile);
 
-  IsJapanese := Info.IsJapanese;
-  if IsJapanese then
-    KanjiIdx := LoadKanjiDat;
   InBytes := ReadTextFileWithEncoding(InFile, Info.FileEncoding, Info.Encoding);
   SetLength(OutBytes, Length(InBytes) * 2 + 16);
 
@@ -1066,20 +1148,7 @@ begin
 {$ELSE}
   S := DecodeDelphi(InBytes, Info);
 {$ENDIF}
-  slIn.Text := S;
-
-
-
-  for i := Low(S) to High(s) do
-  begin
-    Value := Ord(s[i]);
-    if IsJapanese then
-    begin
-      Sjis := Value;
-      if not IsKanjiValid(KanjiIdx, Sjis) then
-        WriteLn(Format(S_IllegalKanji, ['0x' + IntToHex(Sjis, 4)]));
-    end
-  end;
+  slIn.Text := S; // TODO: This does not work with FPC... there is no WideStringList...
 
 
 
@@ -1091,6 +1160,16 @@ begin
     if not LineToMessage(slIn.Strings[i], m) then Continue;
     SetLength(messages, Length(messages)+1);
     messages[Length(messages)-1] := m;
+
+
+
+
+
+
+
+
+
+
   end;
   fsOut := TFileStream.Create(Outfile, fmCreate or fmOpenWrite);
   try
@@ -1119,7 +1198,7 @@ begin
   Writeln('  '+UpperCase(ExtractFileName(ParamStr(0)))+' input.txt');
   {$ELSE}
   Writeln('  ./'+ExtractFileName(ParamStr(0))+' input.gxt [outfile.txt]');
-  Writeln('  ./'+ExtractFileName(ParamStr(0))+' input.txt [outfile.gxt]');
+  Writeln('  ./'+ExtractFileName(ParamStr(0))+' input.txt [outfile.gxt] [E|G|F|I|S|R|J]');
   {$ENDIF}
   Writeln;
 end;
@@ -1197,7 +1276,32 @@ begin
   TxtToGxt(TestDir + 'e.txt', TestDir + 'e2.gxt', 'E');
   GxtToTxt(TestDir + 'e2.gxt', TestDir + 'e2.txt');
   CompareFiles(TestDir + 'e.txt', TestDir + 'e2.txt');
+  // TODO: Currently out re-generated GXT files do NOT fit the original
+  //       GXT files. The reason is that GXT=>TXT does order the output
+  //       according to the pre-ordered TKEYs, not according to the TDAT.
+  //       Probably better would be if GXT=>TXT orders by TDAT.
+  //       But if we do that, then TXT=>GXT needs to order to TKEY
+  //       instead of just taking the order from TXT. (The ordering to TKEY
+  //       is probably important to the game).
   //CompareFiles(TestDir + 'e.gxt', TestDir + 'e2.gxt');
+
+  GxtToTxt(TestDir     + 'f.gxt',  TestDir + 'f.txt');
+  TxtToGxt(TestDir     + 'f.txt',  TestDir + 'f2.gxt', 'F');
+  GxtToTxt(TestDir     + 'f2.gxt', TestDir + 'f2.txt');
+  CompareFiles(TestDir + 'f.txt',  TestDir + 'f2.txt');
+  //CompareFiles(TestDir + 'f.gxt', TestDir + 'f2.gxt');
+
+  GxtToTxt(TestDir     + 'g.gxt',  TestDir + 'g.txt');
+  TxtToGxt(TestDir     + 'g.txt',  TestDir + 'g2.gxt', 'G');
+  GxtToTxt(TestDir     + 'g2.gxt', TestDir + 'g2.txt');
+  CompareFiles(TestDir + 'g.txt',  TestDir + 'g2.txt');
+  //CompareFiles(TestDir + 'g.gxt', TestDir + 'g2.gxt');
+
+  GxtToTxt(TestDir     + 'i.gxt',  TestDir + 'i.txt');
+  TxtToGxt(TestDir     + 'i.txt',  TestDir + 'i2.gxt', 'I');
+  GxtToTxt(TestDir     + 'i2.gxt', TestDir + 'i2.txt');
+  CompareFiles(TestDir + 'i.txt',  TestDir + 'i2.txt');
+  //CompareFiles(TestDir + 'i.gxt', TestDir + 'i2.gxt');
 
   GxtToTxt(TestDir + 'j.gxt', TestDir + 'j.txt');
   TxtToGxt(TestDir + 'j.txt', TestDir + 'j2.gxt', 'J');
@@ -1205,7 +1309,65 @@ begin
   CompareFiles(TestDir + 'j.txt', TestDir + 'j2.txt');
   //CompareFiles(TestDir + 'j.gxt', TestDir + 'j2.gxt');
 
-  // TODO: More testcases
+  // TODO: Implement/Research Russian
+  (*
+  GxtToTxt(TestDir     + 'r.gxt',  TestDir + 'r.txt');
+  TxtToGxt(TestDir     + 'r.txt',  TestDir + 'r2.gxt', 'R');
+  GxtToTxt(TestDir     + 'r2.gxt', TestDir + 'r2.txt');
+  CompareFiles(TestDir + 'r.txt',  TestDir + 'r2.txt');
+  //CompareFiles(TestDir + 'r.gxt', TestDir + 'r2.gxt');
+  *)
+
+  GxtToTxt(TestDir     + 's.gxt',  TestDir + 's.txt');
+  TxtToGxt(TestDir     + 's.txt',  TestDir + 's2.gxt', 'S');
+  GxtToTxt(TestDir     + 's2.gxt', TestDir + 's2.txt');
+  CompareFiles(TestDir + 's.txt',  TestDir + 's2.txt');
+  //CompareFiles(TestDir + 's.gxt', TestDir + 's2.gxt');
+
+  GxtToTxt(TestDir + 'bob_e.gxt', TestDir + 'bob_e.txt');
+  TxtToGxt(TestDir + 'bob_e.txt', TestDir + 'bob_e2.gxt', 'E');
+  GxtToTxt(TestDir + 'bob_e2.gxt', TestDir + 'bob_e2.txt');
+  CompareFiles(TestDir + 'bob_e.txt', TestDir + 'bob_e2.txt');
+  //CompareFiles(TestDir + 'bob_e.gxt', TestDir + 'bob_e2.gxt');
+
+  GxtToTxt(TestDir     + 'bob_f.gxt',  TestDir + 'bob_f.txt');
+  TxtToGxt(TestDir     + 'bob_f.txt',  TestDir + 'bob_f2.gxt', 'F');
+  GxtToTxt(TestDir     + 'bob_f2.gxt', TestDir + 'bob_f2.txt');
+  CompareFiles(TestDir + 'bob_f.txt',  TestDir + 'bob_f2.txt');
+  //CompareFiles(TestDir + 'bob_f.gxt', TestDir + 'bob_f2.gxt');
+
+  GxtToTxt(TestDir     + 'bob_g.gxt',  TestDir + 'bob_g.txt');
+  TxtToGxt(TestDir     + 'bob_g.txt',  TestDir + 'bob_g2.gxt', 'G');
+  GxtToTxt(TestDir     + 'bob_g2.gxt', TestDir + 'bob_g2.txt');
+  CompareFiles(TestDir + 'bob_g.txt',  TestDir + 'bob_g2.txt');
+  //CompareFiles(TestDir + 'bob_g.gxt', TestDir + 'bob_g2.gxt');
+
+  GxtToTxt(TestDir     + 'bob_i.gxt',  TestDir + 'bob_i.txt');
+  TxtToGxt(TestDir     + 'bob_i.txt',  TestDir + 'bob_i2.gxt', 'I');
+  GxtToTxt(TestDir     + 'bob_i2.gxt', TestDir + 'bob_i2.txt');
+  CompareFiles(TestDir + 'bob_i.txt',  TestDir + 'bob_i2.txt');
+  //CompareFiles(TestDir + 'bob_i.gxt', TestDir + 'bob_i2.gxt');
+
+  GxtToTxt(TestDir + 'bob_j.gxt', TestDir + 'bob_j.txt');
+  TxtToGxt(TestDir + 'bob_j.txt', TestDir + 'bob_j2.gxt', 'J');
+  GxtToTxt(TestDir + 'bob_j2.gxt', TestDir + 'bob_j2.txt');
+  CompareFiles(TestDir + 'bob_j.txt', TestDir + 'bob_j2.txt');
+  //CompareFiles(TestDir + 'bob_j.gxt', TestDir + 'bob_j2.gxt');
+
+  // TODO: Implement/Research Russian
+  (*
+  GxtToTxt(TestDir     + 'bob_r.gxt',  TestDir + 'bob_r.txt');
+  TxtToGxt(TestDir     + 'bob_r.txt',  TestDir + 'bob_r2.gxt', 'R');
+  GxtToTxt(TestDir     + 'bob_r2.gxt', TestDir + 'bob_r2.txt');
+  CompareFiles(TestDir + 'bob_r.txt',  TestDir + 'bob_r2.txt');
+  //CompareFiles(TestDir + 'bob_r.gxt', TestDir + 'bob_r2.gxt');
+  *)
+
+  GxtToTxt(TestDir     + 'bob_s.gxt',  TestDir + 'bob_s.txt');
+  TxtToGxt(TestDir     + 'bob_s.txt',  TestDir + 'bob_s2.gxt', 'S');
+  GxtToTxt(TestDir     + 'bob_s2.gxt', TestDir + 'bob_s2.txt');
+  CompareFiles(TestDir + 'bob_s.txt',  TestDir + 'bob_s2.txt');
+  //CompareFiles(TestDir + 'bob_s.gxt', TestDir + 'bob_s2.gxt');
 
   {$IFDEF MSWINDOWS}
   WriteLn(S_PRESS_ANY_KEY);
@@ -1310,6 +1472,7 @@ begin
 {$ELSE}
 var
   InFile, OutFile, Ext: string;
+  Lang: Char;
 begin
   if ParamCount < 1 then
   begin
@@ -1323,6 +1486,12 @@ begin
     Testcases;
     Exit;
   end;
+
+  if ParamCount >= 3 then
+    Lang := ParamStr(3)[1]
+  else
+    Lang := 'E';
+
   if ParamCount >= 2 then
     OutFile := ParamStr(2)
   else
@@ -1340,7 +1509,7 @@ begin
   if Ext = '.gxt' then
     GxtToTxt(InFile, OutFile)
   else if Ext = '.txt' then
-    TxtToGxt(InFile, OutFile)
+    TxtToGxt(InFile, OutFile, Lang)
   else
     raise Exception.Create(S_INVALID_FILE);
 {$ENDIF}
