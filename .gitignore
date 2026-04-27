@@ -82,12 +82,19 @@ __recovery/
 modules/
 
 
+# FPC
+*.rsj
+GTA1/FxtToolUnicode
+GTA2/GxtToolUnicode
 
+# Debug files
+GTA1/fxt_original/
 GTA1/fxt_original/*.FXT
 GTA1/fxt_original/*.fxt
 GTA1/fxt_original/*.TXT
 GTA1/fxt_original/*.txt
 
+GTA2/gxt_original/
 GTA2/gxt_original/*.GXT
 GTA2/gxt_original/*.gxt
 GTA2/gxt_original/*.TXT

@@ -623,7 +623,7 @@ procedure GxtToTxt(const InFile, OutFile: string);
   function DecodeGXT(fs: TFileStream): TDecodeGXTAnswer;
   var
     numEntries: integer;
-    i: integer;
+    i, j: integer;
     filHead: TGTA2Header;
     tkAry: array of TKEYEntry;
     tkLen: integer;
@@ -635,6 +635,7 @@ procedure GxtToTxt(const InFile, OutFile: string);
     msgBytes: TBytes;
     len: integer;
     s: String;
+    KanjiIdx: TBytes;
   begin
     fs.Position := 0;
 
@@ -645,6 +646,8 @@ procedure GxtToTxt(const InFile, OutFile: string);
     if result.Language = 'R' then
       raise Exception.Create('Russian language not implemented yet'); // TODO: Implement Russian
 
+    if result.Language = 'J' then
+      KanjiIdx := LoadKanjiDat;
 
     // Optional checks
     if filHead.magic <> GXT_MAGIC then
@@ -730,12 +733,26 @@ procedure GxtToTxt(const InFile, OutFile: string);
       {$ENDIF}
 
       if filHead.lang = 'J' then
-        result.Messages[i].msg := GTA2toANSI_J(result.Messages[i].msg)
+      begin
+
+        // BUG IN J.GXT: SJIS 0x8140 : IDEOGRAPHIC SP (U+3000), not in Kanji.dat
+        for j := 1 to Length(result.Messages[i].msg) do
+          if Word(result.Messages[i].msg[j]) = $8140 then
+            if not IsKanjiValid(KanjiIdx, Word(result.Messages[i].msg[j])) then
+              result.Messages[i].msg[j] := ' '; // silently replace it with a regular whitespace
+
+        // Convert JSIS-16 to UTF-16
+        result.Messages[i].msg := GTA2toANSI_J(result.Messages[i].msg);
+      end
       else
         result.Messages[i].msg := GTA2toANSI_EU(result.Messages[i].msg);
 
       s := string(PAnsiChar(@tkAry[i].key[0])); // stops at #0
-      s := StringReplace(s, #$81#$5E, '/', []); // Bugfix BOB_J.GXT translated "/" to "／" in the key!
+
+      // BUG IN BOB_J.GXT: They accidentally translated "/" (U+002F) to "／" (U+FF0F) in the key!
+      //                   Silently fix it by replacing it with "/" 
+      s := StringReplace(s, #$81#$5E, '/', []);
+
       result.Messages[i].key := AnsiString(s);
     end;
   end;
@@ -905,12 +922,12 @@ var
             if not (Sjis in [{ $0A, $0D, }$20]) and not IsKanjiValid(KanjiIdx, Sjis) then
             begin
               // BUG IN J.GXT: SJIS 0x8140 : IDEOGRAPHIC SPACE (U+3000), not in Kanji.dat
-              //                             TODO: In the inofficial language patch, it should be replaced with a normal space
+              if Sjis = $8140 then msg[j] := ' ' // silently fix it by replacing it with a normal space
               // BUG IN J.GXT: SJIS 0x9A6B : 嗅	smell, scent, sniff; olfactive (U+55C5) not in Kanji.dat
               //                             [3333] m!朝からゴムの香りを嗅ぐのはいい気分なのデス！
               //                             TODO: In the inofficial language patch, it should be replaced with (Hiragana character):
               //                             [3333] m!朝からゴムの香りをかぐのはいい気分なのデス！
-              WriteLn(Format(S_IllegalKanji, ['0x' + IntToHex(Sjis, 4)]));
+              else WriteLn(Format(S_IllegalKanji, ['0x' + IntToHex(Sjis, 4)]));
             end;
           end;
 
@@ -957,6 +974,8 @@ var
     key: AnsiString;
     msg: WideString;
     guy: AnsiChar;
+    wkey: WideString;
+    i: integer;
   begin
     result := false;
 
@@ -969,7 +988,15 @@ var
     end;
 
     p := Pos(']', line);
-    key := AnsiString(Copy(line, 2, p-2));
+
+    // BUG IN BOB_J.GXT: They accidentally translated "/" (U+002F) to "／" (U+FF0F) in the key!
+    //                   Silently fix it by replacing it with "/" 
+    wkey := Copy(line, 2, p-2);
+    for i := 1 to Length(wkey) do
+      if wkey[i] = #$FF0F then
+        wkey[i] := '!';
+
+    key := AnsiString(wkey);
 
     if (Copy(line, p+1, 1) <> ' ') then
     begin
