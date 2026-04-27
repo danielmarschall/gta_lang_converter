@@ -40,7 +40,7 @@ resourcestring
   S_INVALID_FILE = 'File is neither TXT nor GXT';
   S_ERR_S_S = 'ERROR (%s): %s';
   S_WARN_S_S = 'WARNING (%s): %s';
-  S_OK_S_S = 'OK: %s => %s';
+  S_OK_S_S_LANG_S = 'OK: %s => %s (Language: %s)';
   {$IFDEF MSWINDOWS}
   S_PRESS_ANY_KEY = 'Press any key to exit.';
   {$ENDIF}
@@ -51,6 +51,7 @@ resourcestring
   S_USAGE = 'Usage:';
   S_IllegalKanji = 'Warning: Illegal character not in Kanji.dat: %s';
   S_IllegalEuropeanChar = 'Warning: Illegal European character: %s';
+  S_ENTER_LANGUAGE = 'Please enter the language of %s (E,G,F,I,S,R,J)';
 
 // --- GTA2 Specific
 
@@ -767,11 +768,9 @@ var
 const
   bom: array[0..2] of Byte = ($EF, $BB, $BF);
 begin
-
   fs := TFileStream.Create(InFile, fmOpenRead);
   fsOut := TFileStream.Create(OutFile, fmCreate or fmOpenWrite);
   try
-
     fsOut.WriteBuffer(bom, SizeOf(bom));
 
     ans := DecodeGXT(fs);
@@ -794,7 +793,7 @@ begin
     FreeAndNil(fsOut);
   end;
 
-  WriteLn(Format(S_OK_S_S, [InFile, OutFile]));
+  WriteLn(Format(S_OK_S_S_LANG_S, [InFile, OutFile, ans.Language]));
 end;
 
 procedure TxtToGxt(const InFile, OutFile: string; Language: Char);
@@ -1149,7 +1148,7 @@ begin
     FreeAndNil(fsOut);
   end;
 
-  WriteLn(Format(S_OK_S_S, [InFile, OutFile]));
+  WriteLn(Format(S_OK_S_S_LANG_S, [InFile, OutFile, Language]));
 end;
 
 // --- Main Methods (CLI)
@@ -1349,9 +1348,21 @@ end;
 procedure ProcessFile(const InFile: string; var RequirePause: boolean);
 var
   Lang: Char;
+  chTmp: Char;
+  sTmp: string;
 begin
   try
-    Lang := 'E'; // TODO: Determine language or ask the user !!!
+    Lang := ' ';
+    for chTmp in ['E', 'G', 'F', 'I', 'S', 'R', 'J'] do
+      if SameText(ExtractFileName(InFile), chTmp + '.TXT') or SameText(ExtractFileName(InFile), 'BOB_' + chTmp + '.TXT') then Lang := chTmp;
+    while not CharInSet(Lang, ['E', 'G', 'F', 'I', 'S', 'R', 'J']) do
+    begin
+      WriteLn(Format(S_ENTER_LANGUAGE, [InFile]));
+      ReadLn(sTmp);
+      if sTmp = '' then sTmp := ' ';
+      Lang := UpCase(sTmp[1]);
+    end;
+
          if ExtractFileExt(InFile)         = '.gxt'  then GxtToTxt(InFile, ChangeFileExt(InFile, '.txt'))
     else if ExtractFileExt(InFile)         = '.GXT'  then GxtToTxt(InFile, ChangeFileExt(InFile, '.TXT'))
     else if SameText(ExtractFileExt(InFile), '.gxt') then GxtToTxt(InFile, ChangeFileExt(InFile, '.txt'))
