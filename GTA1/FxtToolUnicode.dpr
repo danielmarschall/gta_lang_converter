@@ -73,9 +73,9 @@ function ConvertWithIconv(const Data: TBytes; SourceEncoding, TargetEncoding: TE
 
   function EncodingToIconvName(Enc: TEncoding): string;
   begin
-    if Enc.CodePage = 65001 then Exit('UTF-8');
-    if Enc.CodePage = 932 then Exit('CP932');
-    if Enc.CodePage = 1252 then Exit('CP1252');
+    if Enc.CodePage = CP_UTF8 then Exit('UTF-8');
+    if Enc.CodePage = CP_SJIS then Exit('CP932');
+    if Enc.CodePage = CP_EURO then Exit('CP1252');
     raise Exception.Create('Unsupported encoding: ' + IntToStr(Enc.CodePage));
   end;
 

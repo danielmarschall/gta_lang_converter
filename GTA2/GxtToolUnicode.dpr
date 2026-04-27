@@ -9,10 +9,7 @@
   More information here: https://misc.daniel-marschall.de/spiele/gta2/
 }
 
-// TODO: Code aufräumen / unnötige Funktionen => marked with UNUSED_
-
 {$IFDEF FPC}
-  // TODO: Test FPC
   {$mode delphi}
   {$H+}
 {$ELSE}
@@ -152,34 +149,20 @@ begin
   Result := TEncoding.GetEncoding(CodePage);
 end;
 
-function ConvertEncoding(const Data: TBytes; SrcCodePage, DstCodePage: Integer): TBytes;
-var
-  SrcEnc, DstEnc: TEncoding;
-  TempString: UnicodeString;
+function BytesToRawString(const B: TBytes): RawByteString;
 begin
-  SrcEnc := TEncoding.GetEncoding(SrcCodePage);
-  DstEnc := TEncoding.GetEncoding(DstCodePage);
-
-  try
-    TempString := SrcEnc.GetString(Data);   // bytes -> Unicode
-    Result := DstEnc.GetBytes(TempString); // Unicode -> bytes
-  finally
-    SrcEnc.Free;
-    DstEnc.Free;
-  end;
+  if Length(B) > 0 then
+    SetString(Result, PAnsiChar(@B[0]), Length(B))
+  else
+    Result := '';
 end;
 
-function UNUSED_StringToRawBytes(const S: string): TBytes;
-var
-  Len: Integer;
+function RawByteStringToBytes(const S: RawByteString): TBytes;
 begin
-  Len := Length(S) * SizeOf(Char); // Char = WideChar = 2 bytes
-
   Result := nil;
-  SetLength(Result, Len);
-
-  if Len > 0 then
-    Move(PChar(S)^, Result[0], Len);
+  SetLength(Result, Length(S));
+  if Length(S) > 0 then
+    Move(PAnsiChar(S)^, Result[0], Length(S));
 end;
 
 {$IFDEF FPC}
@@ -194,9 +177,9 @@ function ConvertWithIconv(const Data: TBytes; SourceEncoding, TargetEncoding: TE
 
   function EncodingToIconvName(Enc: TEncoding): string;
   begin
-    if Enc.CodePage = 65001 then Exit('UTF-8');
-    if Enc.CodePage = 932 then Exit('CP932');
-    if Enc.CodePage = 1252 then Exit('CP1252');
+    if Enc.CodePage = CP_UTF8 then Exit('UTF-8');
+    if Enc.CodePage = CP_SJIS then Exit('CP932');
+    if Enc.CodePage = CP_EURO then Exit('CP1252');
     raise Exception.Create('Unsupported encoding: ' + IntToStr(Enc.CodePage));
   end;
 
@@ -306,58 +289,6 @@ begin
 {$ELSE}
 begin
   Result := TargetEncoding.GetBytes(TFile.ReadAllText(FileName, SourceEncoding));
-{$ENDIF}
-end;
-
-// --- Write File Methods
-
-procedure UNUSED_WriteAllBytesToFile(const FileName: string; Data: TBytes);
-{$IFDEF FPC}
-var
-  FS: TFileStream;
-begin
-  FS := TFileStream.Create(FileName, fmCreate);
-  try
-    if Length(Data) > 0 then
-      FS.WriteBuffer(Data[0], Length(Data));
-  finally
-    FreeAndNil(FS);
-  end;
-{$ELSE}
-begin
-  TFile.WriteAllBytes(FileName, Data);
-{$ENDIF}
-end;
-
-procedure UNUSED_WriteTextFileWithEncoding(const FileName: string; const SourceEncoding: TEncoding; const TargetEncoding: TEncoding; const Data: TBytes);
-{$IFDEF FPC}
-  function PrependBytes(const Prefix, Data: TBytes): TBytes;
-  var
-    PrefixLen, DataLen: Integer;
-  begin
-    Result := nil;
-
-    PrefixLen := Length(Prefix);
-    DataLen := Length(Data);
-
-    SetLength(Result, PrefixLen + DataLen);
-
-    if PrefixLen > 0 then
-      Move(Prefix[0], Result[0], PrefixLen);
-
-    if DataLen > 0 then
-      Move(Data[0], Result[PrefixLen], DataLen);
-  end;
-
-var
-  ConvertedBytes: TBytes;
-begin
-  ConvertedBytes := ConvertWithIconv(Data, SourceEncoding, TargetEncoding);
-  ConvertedBytes := PrependBytes(TargetEncoding.GetPreamble, ConvertedBytes);
-  UNUSED_WriteAllBytesToFile(FileName, ConvertedBytes);
-{$ELSE}
-begin
-  TFile.WriteAllText(FileName, SourceEncoding.GetString(Data), TargetEncoding);
 {$ENDIF}
 end;
 
@@ -609,10 +540,6 @@ end;
 
 procedure GxtToTxt(const InFile, OutFile: string);
 
-
-
-
-
   function GTA2toANSI_J(s: WideString): WideString;
   var
     i: Integer;
@@ -621,7 +548,7 @@ procedure GxtToTxt(const InFile, OutFile: string);
     enc: TEncoding;
   begin
     Result := '';
-    enc := TEncoding.GetEncoding(932); // CP932 / Shift-JIS
+    enc := MakeEncoding(CP_SJIS);
 
     try
       for i := 1 to Length(s) do
@@ -642,9 +569,16 @@ procedure GxtToTxt(const InFile, OutFile: string);
 
           { if first byte zero -> single byte }
           if b[0] = 0 then
+          begin
+            b[0] := b[1];
             SetLength(b, 1);
+          end;
 
+          {$IFDEF FPC}
+          Result := Result + Utf8Decode(BytesToRawString(ConvertWithIconv(b, MakeEncoding(CP_SJIS), MakeEncoding(CP_UTF8))));
+          {$ELSE}
           Result := Result + enc.GetString(b);
+          {$ENDIF}
         end;
       end;
     finally
@@ -766,9 +700,6 @@ procedure GxtToTxt(const InFile, OutFile: string);
     SetLength(result.Messages, numEntries);
     for i := 0 to numEntries-1 do
     begin
-
-
-
       p := PByte(op) + tkAry[i].relDataOffset;
 
       len := 0;
@@ -776,14 +707,9 @@ procedure GxtToTxt(const InFile, OutFile: string);
       { scan UTF-16 zero terminator #0#0 }
       while not ((p[len] = 0) and (p[len + 1] = 0)) do
         Inc(len, SizeOf(WideChar));
-
       SetLength(msgBytes, len);
-
       if Len > 0 then
         Move(p^, msgBytes[0], len);
-
-
-
 
       // Decode Speaker
       result.Messages[i].guy := #0;
@@ -797,8 +723,11 @@ procedure GxtToTxt(const InFile, OutFile: string);
         end;
       end;
 
-      //result.Messages[i].msg := TEncoding.Unicode.GetString(msgBytes);
+      {$IFDEF FPC}
       result.Messages[i].msg := BytesToWideStringRaw(msgBytes);
+      {$ELSE}
+      result.Messages[i].msg := TEncoding.Unicode.GetString(msgBytes);
+      {$ENDIF}
 
       if filHead.lang = 'J' then
         result.Messages[i].msg := GTA2toANSI_J(result.Messages[i].msg)
@@ -811,25 +740,25 @@ procedure GxtToTxt(const InFile, OutFile: string);
     end;
   end;
 
-
-
-
 var
   ans: TDecodeGXTAnswer;
   messages: TGTAMessagesArray;
-  fs: TFileStream;
+  fs, fsOut: TFileStream;
   i: integer;
-  slOut: TStringList;
   speaker: string;
+  rbs: RawByteString;
+const
+  bom: array[0..2] of Byte = ($EF, $BB, $BF);
 begin
 
-  fs := TFileStream.Create(InFile, fmopenread);
-  slOut := TStringList.Create;
+  fs := TFileStream.Create(InFile, fmOpenRead);
+  fsOut := TFileStream.Create(OutFile, fmCreate or fmOpenWrite);
   try
-    ans := decodegxt(fs);
+
+    fsOut.WriteBuffer(bom, SizeOf(bom));
+
+    ans := DecodeGXT(fs);
     messages := ans.Messages;
-    // TODO: use this to help the GXT converter to choose the correct language
-    //slOut.Add(format('[%s] %s', ['__LANG__', ans.Language]));
     for i := low(messages) to high(messages) do
     begin
       if messages[i].guy <> #0 then
@@ -839,13 +768,13 @@ begin
       else
         speaker := '';
 
-      slOut.Add(format('[%s] %s%s', [messages[i].key, speaker, messages[i].msg]));
+      rbs := UTF8Encode('[' + WideString(messages[i].key) + '] ' + WideString(speaker) + messages[i].msg + #13#10);
+      fsOut.WriteBuffer(Pointer(rbs)^, Length(rbs));
     end;
-
-    slOut.SaveToFile(Outfile, TEncoding.UTF8);
 
   finally
     FreeAndNil(fs);
+    FreeAndNil(fsOut);
   end;
 
   WriteLn(Format(S_OK_S_S, [InFile, OutFile]));
@@ -855,7 +784,15 @@ procedure TxtToGxt(const InFile, OutFile: string; Language: Char);
 var
   KanjiIdx: TBytes;
 
-
+  function Unused_WideStringToBytes(const S: WideString): TBytes;
+  begin
+    Result := nil;
+    if Length(S) > 0 then
+    begin
+      SetLength(Result, Length(S) * SizeOf(WideChar));
+      Move(PWideChar(S)^, Result[0], Length(Result));
+    end;
+  end;
 
   function ANSItoGTA2_J(s: WideString): WideString;
   var
@@ -866,7 +803,7 @@ var
     enc: TEncoding;
   begin
     Result := '';
-    enc := TEncoding.GetEncoding(932); // CP932 / Shift-JIS
+    enc := MakeEncoding(CP_SJIS); // CP932 / Shift-JIS
 
     try
       for i := 1 to Length(s) do
@@ -881,7 +818,11 @@ var
         else
         begin
           { Rest becomes Shift-JIS, but always 16 bit }
+          {$IFDEF FPC}
+          b := ConvertWithIconv(RawByteStringToBytes(Utf8Encode(s[i])), MakeEncoding(CP_UTF8), MakeEncoding(CP_SJIS));
+          {$ELSE}
           b := enc.GetBytes(ch);
+          {$ENDIF}
 
           if Length(b) = 1 then
             w := b[0]
@@ -913,7 +854,6 @@ var
       end;
     end;
   end;
-
 
   function ZeroPad(s: string; len: integer): string;
   begin
@@ -961,7 +901,7 @@ var
 
           for j := Low(msg) to High(msg) do
           begin
-            Sjis := Word(Cardinal(msg[j]));
+            Sjis := Word(msg[j]);
             if not (Sjis in [{ $0A, $0D, }$20]) and not IsKanjiValid(KanjiIdx, Sjis) then
             begin
               // BUG IN J.GXT: SJIS 0x8140 : IDEOGRAPHIC SPACE (U+3000), not in Kanji.dat
@@ -1011,7 +951,6 @@ var
     end;
   end;
 
-
   function LineToMessage(line: WideString; var m: TGTAMessage): boolean;
   var
     p: integer;
@@ -1055,32 +994,15 @@ var
     result := true;
   end;
 
-
-
-
-
 {$IFDEF FPC}
   function DecodeFPC(const B: TBytes; Info: TFileEncInfo): WideString;
-
-    function BytesToRawString(const B: TBytes): RawByteString;
-    begin
-      if Length(B) > 0 then
-        SetString(Result, PAnsiChar(@B[0]), Length(B))
-      else
-        Result := '';
-    end;
-
   begin
     if Info.IsUtf8 then
-      Result := UTF8Decode(BytesToRawString(B))
+      Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, Info.Encoding, MakeEncoding(CP_UTF8))))
     else if Info.IsJapanese then
-      Result := WideString(BytesToRawString(ConvertEncoding(B, CP_SJIS, CP_UTF8)))
+      Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, MakeEncoding(CP_SJIS), MakeEncoding(CP_UTF8))))
     else
-      Result := WideString(BytesToRawString(ConvertEncoding(B, CP_EURO, CP_UTF8)));
-
-
-
-
+      Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, MakeEncoding(CP_EURO), MakeEncoding(CP_UTF8))));
   end;
 {$ELSE}
   function DecodeDelphi(const B: TBytes; Info: TFileEncInfo): WideString;
@@ -1094,7 +1016,7 @@ var
     P := 0;
     Len := Length(B);
 
-    // UTF8 BOM überspringen
+    // Skip UTF8 BOM
     if info.IsUtf8 and (Len >= 3) and
        (B[0] = $EF) and (B[1] = $BB) and (B[2] = $BF) then
     begin
@@ -1107,9 +1029,9 @@ var
     else if info.IsUtf8 then
       Result := TEncoding.UTF8.GetString(B, P, Len)
     else if info.IsJapanese then
-      Result := TEncoding.GetEncoding(932).GetString(B, P, Len)
+      Result := MakeEncoding(CP_SJIS).GetString(B, P, Len)
     else
-      Result := TEncoding.GetEncoding(1252).GetString(B, P, Len);
+      Result := MakeEncoding(CP_EURO).GetString(B, P, Len);
   end;
 {$ENDIF}
 
@@ -1172,14 +1094,11 @@ begin
     KanjiIdx := LoadKanjiDat;
   InBytes := ReadTextFileWithEncoding(InFile, Info.FileEncoding, Info.Encoding);
 
-
-
 {$IFDEF FPC}
   S := DecodeFPC(InBytes, Info);
 {$ELSE}
   S := DecodeDelphi(InBytes, Info);
 {$ENDIF}
-
 
   Lines := SplitLines(S);
 
@@ -1299,7 +1218,7 @@ begin
   TxtToGxt(TestDir + 'e.txt', TestDir + 'e2.gxt', 'E');
   GxtToTxt(TestDir + 'e2.gxt', TestDir + 'e2.txt');
   CompareFiles(TestDir + 'e.txt', TestDir + 'e2.txt');
-  // TODO: Currently out re-generated GXT files do NOT fit the original
+  // TODO: Currently our re-generated GXT files do NOT fit the original
   //       GXT files. The reason is that GXT=>TXT does order the output
   //       according to the pre-ordered TKEYs, not according to the TDAT.
   //       Probably better would be if GXT=>TXT orders by TDAT.
@@ -1405,7 +1324,7 @@ var
   Lang: Char;
 begin
   try
-    Lang := 'E'; // TODO: Determine language or ask the user
+    Lang := 'E'; // TODO: Determine language or ask the user !!!
          if ExtractFileExt(InFile)         = '.gxt'  then GxtToTxt(InFile, ChangeFileExt(InFile, '.txt'))
     else if ExtractFileExt(InFile)         = '.GXT'  then GxtToTxt(InFile, ChangeFileExt(InFile, '.TXT'))
     else if SameText(ExtractFileExt(InFile), '.gxt') then GxtToTxt(InFile, ChangeFileExt(InFile, '.txt'))
