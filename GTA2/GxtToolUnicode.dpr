@@ -1470,11 +1470,6 @@ begin
     Exit;
   end;
 
-  if ParamCount >= 3 then
-    Lang := ParamStr(3)[1]
-  else
-    Lang := GuessOrAskForLanguage(InFile);
-
   if ParamCount >= 2 then
     OutFile := ParamStr(2)
   else
@@ -1492,7 +1487,13 @@ begin
   if Ext = '.gxt' then
     GxtToTxt(InFile, OutFile)
   else if Ext = '.txt' then
-    TxtToGxt(InFile, OutFile, Lang)
+  begin
+    if ParamCount >= 3 then
+      Lang := ParamStr(3)[1]
+    else
+      Lang := GuessOrAskForLanguage(InFile);
+    TxtToGxt(InFile, OutFile, Lang);
+  end
   else
     raise Exception.Create(S_INVALID_FILE);
 {$ENDIF}
