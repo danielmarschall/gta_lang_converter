@@ -52,6 +52,16 @@ resourcestring
   S_IllegalKanji = 'Warning: Illegal character not in Kanji.dat: %s';
   S_IllegalEuropeanChar = 'Warning: Illegal European character: %s';
   S_ENTER_LANGUAGE = 'Please enter the language of %s (E,G,F,I,S,R,J)';
+  SInvalidLineIgnored = 'Attention: Invalid line was ignored: %s';
+  SInvalidLine = 'Error: Invalid line: %s';
+  SLineTooLongIgnored = 'Attention: Line was ignored because key was too long: %s';
+  SUnknownSectionType_S = 'Attention: Unknown section type "%s"';
+  SWarnExtraBytes = 'Attention: %d extra bytes at end of file.';
+  SSectionNotFound = 'ERROR: Section "%s" not found';
+  SMagicHeaderMissing = 'ERROR: Magic header "%s" missing.';
+  SLanguageMustBe_S = 'ERROR: Language must be "%s".';
+  SWrongFileVersion = 'ERROR: %s version doesn''t have the value %d.';
+  SFileNotFound = 'File not found: %s';
 
 // --- GTA2 Specific
 
@@ -116,7 +126,7 @@ const
 
 type
   TGTA2Header = packed record
-    magic: array[0..2] of AnsiChar; // always "GBL"
+    magic: array[0..2] of AnsiChar; // "GBL" (*.gxt), "KAN" (kanji.dat)
     lang: AnsiChar; // E,G,F,I,S,R,J
     version: word // always 64 00 = 100
   end;
@@ -236,7 +246,7 @@ var
 begin
   Result := nil; // SetLength(Result, 0);
   if not FileExists(FileName) then
-    raise Exception.CreateFmt('File not found: %s', [FileName]);
+    raise Exception.CreateFmt(SFileNotFound, [FileName]);
 
   FS := TFileStream.Create(FileName, fmOpenRead or fmShareDenyWrite);
   try
@@ -463,34 +473,34 @@ function LoadKanjiDat: TBytes;
 
     // Optional checks
     if filHead.magic <> KAN_MAGIC then
-      raise Exception.Create('ERROR: Magic header "'+KAN_MAGIC+'" missing.');
-    if filHead.lang <> 'J' then
-      raise Exception.Create('ERROR: Language must be "J".');
+      raise Exception.CreateFmt(SMagicHeaderMissing, [KAN_MAGIC]);
+    if filHead.lang <> 'J' then // do not localize
+      raise Exception.CreateFmt(SLanguageMustBe_S, ['J']); // do not localize
     if filHead.version <> KAN_VER then
-      raise Exception.Create('ERROR: GXT version doesn''t has the value '+IntToStr(KAN_VER)+'.');
+      raise Exception.CreateFmt(SWrongFileVersion, [KAN_MAGIC, KAN_VER]);
     fs.Seek(SizeOf(filHead), soFromBeginning);
     while fs.Position < fs.Size do
     begin
       fs.Read(secHead, SizeOf(secHead));
-      if (secHead.sectionKey <> 'KIDX') and (secHead.sectionKey <> 'KBIT') then
-        WriteLn('Attention: Unknown section type '+secHead.sectionKey);
+      if (secHead.sectionKey <> 'KIDX') and (secHead.sectionKey <> 'KBIT') then // do not localize
+        WriteLn(Format(SUnknownSectionType_S, [secHead.sectionKey]));
       fs.Seek(secHead.sectionLength, soCurrent);
     end;
     extra := fs.Position - fs.Size;
     if extra > 0 then
-      WriteLn('Attention: Extra bytes at end of file: ' + IntToStr(extra));
+      WriteLn(Format(SWarnExtraBytes, [extra]));
 
     // Step 1: Only read KIDX
     fs.Seek(SizeOf(filHead), soFromBeginning);
     while fs.Position < fs.Size do
     begin
       fs.Read(secHead, SizeOf(secHead));
-      if secHead.sectionKey = 'KIDX' then Break;
+      if secHead.sectionKey = 'KIDX' then Break; // do not localize
       fs.Seek(secHead.sectionLength, soCurrent);
     end;
-    if secHead.sectionKey <> 'KIDX' then
+    if secHead.sectionKey <> 'KIDX' then // do not localize
     begin
-      raise Exception.Create('ERROR: "KIDX" not found');
+      raise Exception.CreateFmt(SSectionNotFound, ['KIDX']); // do not localize
     end;
     Result := nil;
     SetLength(Result, secHead.sectionLength);
@@ -534,8 +544,6 @@ begin
   Entry := PWord(@Data[Offset])^;
   Result := Entry <> $FFFF;
 end;
-
-
 
 // --- GXT/TXT Converter Methods
 
@@ -647,37 +655,37 @@ procedure GxtToTxt(const InFile, OutFile: string);
     if result.Language = 'R' then
       raise Exception.Create('Russian language not implemented yet'); // TODO: Implement Russian
 
-    if result.Language = 'J' then
+    if result.Language = 'J' then // do not localize
       KanjiIdx := LoadKanjiDat;
 
     // Optional checks
     if filHead.magic <> GXT_MAGIC then
-      raise Exception.Create('ERROR: Magic header "'+GXT_MAGIC+'" missing.');
+      raise Exception.CreateFmt(SMagicHeaderMissing, [GXT_MAGIC]);
     if filHead.version <> GXT_VER then
-      raise Exception.Create('ERROR: GXT version doesn''t has the value '+IntToStr(GXT_VER)+'.');
+      raise Exception.CreateFmt(SWrongFileVersion, [GXT_MAGIC, GXT_VER]);
     fs.Seek(SizeOf(filHead), soFromBeginning);
     while fs.Position < fs.Size do
     begin
       fs.Read(secHead, SizeOf(secHead));
-      if (secHead.sectionKey <> 'TKEY') and (secHead.sectionKey <> 'TDAT') then
-        WriteLn('Attention: Unknown section type '+secHead.sectionKey);
+      if (secHead.sectionKey <> 'TKEY') and (secHead.sectionKey <> 'TDAT') then // do not localize
+        WriteLn(Format(SUnknownSectionType_S, [secHead.sectionKey]));
       fs.Seek(secHead.sectionLength, soCurrent);
     end;
     extra := fs.Position - fs.Size;
     if extra > 0 then
-      WriteLn('Attention: Extra bytes at end of file: ' + IntToStr(extra));
+      WriteLn(Format(SWarnExtraBytes, [extra]));
 
     // Step 1: Collect all keys
     fs.Seek(SizeOf(filHead), soFromBeginning);
     while fs.Position < fs.Size do
     begin
       fs.Read(secHead, SizeOf(secHead));
-      if secHead.sectionKey = 'TKEY' then Break;
+      if secHead.sectionKey = 'TKEY' then Break; // do not localize
       fs.Seek(secHead.sectionLength, soCurrent);
     end;
-    if secHead.sectionKey <> 'TKEY' then
+    if secHead.sectionKey <> 'TKEY' then // do not localize
     begin
-      raise Exception.Create('ERROR: "TKEY" not found');
+      raise Exception.CreateFmt(SSectionNotFound, ['TKEY']); // do not localize
     end;
     tkLen := secHead.sectionLength;
     numEntries := tkLen div SizeOf(TKEYEntry);
@@ -689,12 +697,12 @@ procedure GxtToTxt(const InFile, OutFile: string);
     while fs.Position < fs.Size do
     begin
       fs.Read(secHead, SizeOf(secHead));
-      if secHead.sectionKey = 'TDAT' then Break;
+      if secHead.sectionKey = 'TDAT' then Break; // do not localize
       fs.Seek(secHead.sectionLength, soCurrent);
     end;
-    if secHead.sectionKey <> 'TDAT' then
+    if secHead.sectionKey <> 'TDAT' then // do not localize
     begin
-      raise Exception.Create('ERROR: "TDAT" not found');
+      raise Exception.CreateFmt(SSectionNotFound, ['TDAT']); // do not localize
     end;
     SetLength(ws, secHead.sectionLength div SizeOf(WideChar));
     fs.Read(ws[1], secHead.sectionLength);
@@ -902,7 +910,7 @@ var
       begin
         if Length(messages[i].key) > 7 then
         begin
-          WriteLn('Attention: Line was ignored because key was too long: ' + messages[i].key);
+          WriteLn(Format(SLineTooLongIgnored, [messages[i].key]));
           Continue;
         end;
 
@@ -948,13 +956,13 @@ var
       gxtHead.version := GXT_VER;
       fsOut.Write(gxtHead, SizeOf(gxtHead));
 
-      secHead.sectionKey := 'TKEY';
+      secHead.sectionKey := 'TKEY'; // do not localize
       secHead.sectionLength := msKey.Size;
       fsOut.Write(secHead, SizeOf(secHead));
       msKey.Position := 0;
       fsOut.CopyFrom(msKey, msKey.Size);
 
-      secHead.sectionKey := 'TDAT';
+      secHead.sectionKey := 'TDAT'; // do not localize
       secHead.sectionLength := msDat.Size;
       fsOut.Write(secHead, SizeOf(secHead));
       msDat.Position := 0;
@@ -980,7 +988,7 @@ var
 
     if (Copy(line, 1, 1) <> '[') then
     begin
-      WriteLn('Attention: Invalid line was ignored: ' + line);
+      WriteLn(Format(SInvalidLineIgnored, [line]));
       Exit;
     end;
 
@@ -997,7 +1005,7 @@ var
 
     if (Copy(line, p+1, 1) <> ' ') then
     begin
-      WriteLn('Error: Invalid line: ' + line);
+      WriteLn(Format(SInvalidLine, [line]));
       Exit;
     end;
 
@@ -1181,13 +1189,13 @@ begin
 
   if not FileExists(File1) then
   begin
-    Writeln(Format('Error: File not found: %s', [File1]));
+    Writeln('Error: ' + Format(SFileNotFound, [File1]));
     Exit;
   end;
 
   if not FileExists(File2) then
   begin
-    Writeln(Format('Error: File not found: %s', [File2]));
+    Writeln('Error: ' + Format(SFileNotFound, [File2]));
     Exit;
   end;
 
