@@ -3,18 +3,20 @@
 {
   GXT<=>TXT converter for GTA2
   by Daniel Marschall
-  Revision: 27 April 2026
+  Revision: 28 April 2026
   Licensed under the terms of the Apache 2.0 license
   Source code compatible with Delphi for Win32/64, and FreePascal for Debian Linux
   More information here: https://misc.daniel-marschall.de/spiele/gta2/
 }
+
+// TODO: Russian is not fully implemented. Testcases currently fail.
 
 {$IFDEF FPC}
   {$mode delphi}
   {$H+}
 {$ELSE}
   {$APPTYPE CONSOLE}
-
+  {$R *.dres}
 {$ENDIF}
 
 {$IFDEF FPC}
@@ -24,15 +26,12 @@ uses
   baseunix,
   ctypes;
 {$ELSE}
-{$R *.dres}
-
 uses
   System.SysUtils,
   System.Classes,
   System.IOUtils,
   System.StrUtils,
   WinApi.Windows;
-
 {$ENDIF}
 
 resourcestring
@@ -46,7 +45,7 @@ resourcestring
   {$ENDIF}
   S_INTRO_1 = 'GXT<>TXT Converter for GTA 2 (Unicode Version)';
   S_INTRO_2 = 'by Daniel Marschall';
-  S_INTRO_3 = 'Revision: 27 April 2026';
+  S_INTRO_3 = 'Revision: 28 April 2026';
   S_INTRO_4 = 'Licensed under the terms of the Apache 2.0 license';
   S_USAGE = 'Usage:';
   S_IllegalKanji = 'Warning: Illegal character not in Kanji.dat: %s';
@@ -72,56 +71,131 @@ const
   KAN_VER = 100;
 
   MAX_KEY_SIZE = 8;
-  EU_Charset_Convert: array[0..48,0..1] of AnsiChar = (
-        (#$80, #$C0),
-        (#$81, #$C1),
-        (#$82, #$C2),
-        (#$83, #$C4),
-        (#$84, #$C6),
-        (#$85, #$C7),
-        (#$86, #$C8),
-        (#$87, #$C9),
-        (#$88, #$CA),
-        (#$89, #$CB),
-        (#$8A, #$CC),
-        (#$8B, #$CD),
-        (#$8C, #$CE),
-        (#$8D, #$CF),
-        (#$8E, #$D2),
-        (#$8F, #$D3),
-        (#$90, #$D4),
-        (#$91, #$D6),
-        (#$92, #$D9),
-        (#$93, #$DA),
-        (#$94, #$DB),
-        (#$95, #$DC),
-        (#$96, #$DF),
-        (#$97, #$E0),
-        (#$98, #$E1),
-        (#$99, #$E2),
-        (#$9A, #$E4),
-        (#$9B, #$E6),
-        (#$9C, #$E7),
-        (#$9D, #$E8),
-        (#$9E, #$E9),
-        (#$9F, #$EA),
-        (#$A0, #$EB),
-        (#$A1, #$EC),
-        (#$A2, #$ED),
-        (#$A3, #$EE),
-        (#$A4, #$EF),
-        (#$A5, #$F2),
-        (#$A6, #$F3),
-        (#$A7, #$F4),
-        (#$A8, #$F6),
-        (#$A9, #$F9),
-        (#$AA, #$FA),
-        (#$AB, #$FB),
-        (#$AC, #$FC),
-        (#$AD, #$D1),
-        (#$AE, #$F1),
-        (#$AF, #$BF),
-        (#$B0, #$A1)
+  EU_Charset_Convert: array[0..48,0..1] of WideChar = (
+        (* This is the European charset for the Game (NOT for the Game Manager) *)
+        (#$0080, #$00C0), {À}
+        (#$0081, #$00C1), {Á}
+        (#$0082, #$00C2), {Â}
+        (#$0083, #$00C4), {Ä}
+        (#$0084, #$00C6), {Æ}
+        (#$0085, #$00C7), {Ç}
+        (#$0086, #$00C8), {È}
+        (#$0087, #$00C9), {É}
+        (#$0088, #$00CA), {Ê}
+        (#$0089, #$00CB), {Ë}
+        (#$008A, #$00CC), {Ì}
+        (#$008B, #$00CD), {Í}
+        (#$008C, #$00CE), {Î}
+        (#$008D, #$00CF), {Ï}
+        (#$008E, #$00D2), {Ò}
+        (#$008F, #$00D3), {Ó}
+        (#$0090, #$00D4), {Ô}
+        (#$0091, #$00D6), {Ö}
+        (#$0092, #$00D9), {Ù}
+        (#$0093, #$00DA), {Ú}
+        (#$0094, #$00DB), {Û}
+        (#$0095, #$00DC), {Ü}
+        (#$0096, #$00DF), {ß}
+        (#$0097, #$00E0), {à}
+        (#$0098, #$00E1), {á}
+        (#$0099, #$00E2), {â}
+        (#$009A, #$00E4), {ä}
+        (#$009B, #$00E6), {æ}
+        (#$009C, #$00E7), {ç}
+        (#$009D, #$00E8), {è}
+        (#$009E, #$00E9), {é}
+        (#$009F, #$00EA), {ê}
+        (#$00A0, #$00EB), {ë}
+        (#$00A1, #$00EC), {ì}
+        (#$00A2, #$00ED), {í}
+        (#$00A3, #$00EE), {î}
+        (#$00A4, #$00EF), {ï}
+        (#$00A5, #$00F2), {ò}
+        (#$00A6, #$00F3), {ó}
+        (#$00A7, #$00F4), {ô}
+        (#$00A8, #$00F6), {ö}
+        (#$00A9, #$00F9), {ù}
+        (#$00AA, #$00FA), {ú}
+        (#$00AB, #$00FB), {û}
+        (#$00AC, #$00FC), {ü}
+        (#$00AD, #$00D1), {Ñ}
+        (#$00AE, #$00F1), {ñ}
+        (#$00AF, #$00BF), {¿}
+        (#$00B0, #$00A1)  {¡}
+  );
+
+  RU_Charset_Convert: array[0..65,0..1] of WideChar = (
+        // B1..F2 is the Russian extension for the GAME (r.gxt)
+        // The mapping can be found for example in bil.sty
+        // This DOES NOT apply to bob_r.gxt since the GTA Manager works with ANSI,
+        // not with the game mapping!
+        // (TODO: Our game needs to handle bob_*.gxt differently!)
+        (#$00B1, #$0401), {Ё}
+        (#$00B2, #$0419), {Й}
+        (#$00B3, #$0426), {Ц}
+        (#$00B4, #$0423), {У}
+        (#$00B5, #$041A), {К}
+        (#$00B6, #$0415), {Е}
+        (#$00B7, #$041D), {Н}
+        (#$00B8, #$0413), {Г}
+        (#$00B9, #$0428), {Ш}
+        (#$00BA, #$0429), {Щ}
+        (#$00BB, #$0417), {З}
+        (#$00BC, #$0425), {Х}
+        (#$00BD, #$042A), {Ъ}
+        (#$00BE, #$0424), {Ф}
+        (#$00BF, #$042B), {Ы}
+        (#$00C0, #$0412), {В}
+        (#$00C1, #$0410), {А}
+        (#$00C2, #$041F), {П}
+        (#$00C3, #$0420), {Р}
+        (#$00C4, #$041E), {О}
+        (#$00C5, #$041B), {Л}
+        (#$00C6, #$0414), {Д}
+        (#$00C7, #$0416), {Ж}
+        (#$00C8, #$042D), {Э}
+        (#$00C9, #$042F), {Я}
+        (#$00CA, #$0427), {Ч}
+        (#$00CB, #$0421), {С}
+        (#$00CC, #$041C), {М}
+        (#$00CD, #$0418), {И}
+        (#$00CE, #$0422), {Т}
+        (#$00CF, #$042C), {Ь}
+        (#$00D0, #$0411), {Б}
+        (#$00D1, #$042E), {Ю}
+        (#$00D2, #$0451), {ё}
+        (#$00D3, #$0439), {й}
+        (#$00D4, #$0446), {ц}
+        (#$00D5, #$0443), {у}
+        (#$00D6, #$043A), {к}
+        (#$00D7, #$0435), {е}
+        (#$00D8, #$043D), {н}
+        (#$00D9, #$0433), {г}
+        (#$00DA, #$0448), {ш}
+        (#$00DB, #$0449), {щ}
+        (#$00DC, #$0437), {з}
+        (#$00DD, #$0445), {х}
+        (#$00DE, #$044A), {ъ}
+        (#$00DF, #$0444), {ф}
+        (#$00E0, #$044B), {ы}
+        (#$00E1, #$0432), {в}
+        (#$00E2, #$0430), {а}
+        (#$00E3, #$043F), {п}
+        (#$00E4, #$0440), {р}
+        (#$00E5, #$043E), {о}
+        (#$00E6, #$043B), {л}
+        (#$00E7, #$0434), {д}
+        (#$00E8, #$0436), {ж}
+        (#$00E9, #$044D), {э}
+        (#$00EA, #$044F), {я}
+        (#$00EB, #$0447), {ч}
+        (#$00EC, #$0441), {с}
+        (#$00ED, #$043C), {м}
+        (#$00EE, #$0438), {и}
+        (#$00EF, #$0442), {т}
+        (#$00F0, #$044C), {ь}
+        (#$00F1, #$0431), {б}
+        (#$00F2, #$044E)  {ю}
   );
 
 type
@@ -604,9 +678,27 @@ procedure GxtToTxt(const InFile, OutFile: string);
     begin
       for j := Low(EU_Charset_Convert) to High(EU_Charset_Convert) do
       begin
-        if Ord(result[i]) = Ord(EU_Charset_Convert[j][0]) then
+        if result[i] = EU_Charset_Convert[j][0] then
         begin
-          result[i] := WideChar(Ord(EU_Charset_Convert[j][1]));
+          result[i] := EU_Charset_Convert[j][1];
+          break;
+        end;
+      end;
+    end;
+  end;
+
+  function GTA2toANSI_RU(s: WideString): WideString;
+  var
+    i, j: integer;
+  begin
+    result := s;
+    for i := 1 to Length(s) do
+    begin
+      for j := Low(RU_Charset_Convert) to High(RU_Charset_Convert) do
+      begin
+        if result[i] = RU_Charset_Convert[j][0] then
+        begin
+          result[i] := RU_Charset_Convert[j][1];
           break;
         end;
       end;
@@ -651,9 +743,6 @@ procedure GxtToTxt(const InFile, OutFile: string);
     fs.Read(filHead, SizeOf(filHead));
 
     result.Language := filHead.lang;
-
-    if result.Language = 'R' then
-      raise Exception.Create('Russian language not implemented yet'); // TODO: Implement Russian
 
     if result.Language = 'J' then // do not localize
       KanjiIdx := LoadKanjiDat;
@@ -753,6 +842,8 @@ procedure GxtToTxt(const InFile, OutFile: string);
         // Convert JSIS-16 to UTF-16
         result.Messages[i].msg := GTA2toANSI_J(result.Messages[i].msg);
       end
+      else if filHead.lang = 'R' then
+        result.Messages[i].msg := GTA2toANSI_RU(result.Messages[i].msg)
       else
         result.Messages[i].msg := GTA2toANSI_EU(result.Messages[i].msg);
 
@@ -870,9 +961,27 @@ var
     begin
       for j := Low(EU_Charset_Convert) to High(EU_Charset_Convert) do
       begin
-        if Ord(result[i]) = Ord(EU_Charset_Convert[j][1]) then
+        if result[i] = EU_Charset_Convert[j][1] then
         begin
-          result[i] := WideChar(Ord(EU_Charset_Convert[j][0]));
+          result[i] := EU_Charset_Convert[j][0];
+          break;
+        end;
+      end;
+    end;
+  end;
+
+  function ANSItoGTA2_RU(s: WideString): WideString;
+  var
+    i, j: integer;
+  begin
+    result := s;
+    for i := 1 to Length(s) do
+    begin
+      for j := Low(RU_Charset_Convert) to High(RU_Charset_Convert) do
+      begin
+        if result[i] = RU_Charset_Convert[j][1] then
+        begin
+          result[i] := RU_Charset_Convert[j][0];
           break;
         end;
       end;
@@ -898,9 +1007,6 @@ var
     j: integer;
     sjis: word;
   begin
-    if lang = 'R' then
-      raise Exception.Create('Russian language not implemented yet'); // TODO: Implement Russian
-
     msKey := TMemoryStream.Create;
     msDat := TMemoryStream.Create;
     try
@@ -937,6 +1043,8 @@ var
           end;
 
         end
+        else if lang = 'R' then
+          msg := ANSItoGTA2_RU(messages[i].msg)
         else
           msg := ANSItoGTA2_EU(messages[i].msg);
 
@@ -1283,14 +1391,11 @@ begin
   CompareFiles(TestDir + 'j.txt', TestDir + 'j2.txt');
   //CompareFiles(TestDir + 'j.gxt', TestDir + 'j2.gxt');
 
-  // TODO: Implement/Research Russian
-  (*
   GxtToTxt(TestDir     + 'r.gxt',  TestDir + 'r.txt');
   TxtToGxt(TestDir     + 'r.txt',  TestDir + 'r2.gxt', 'R');
   GxtToTxt(TestDir     + 'r2.gxt', TestDir + 'r2.txt');
   CompareFiles(TestDir + 'r.txt',  TestDir + 'r2.txt');
   //CompareFiles(TestDir + 'r.gxt', TestDir + 'r2.gxt');
-  *)
 
   GxtToTxt(TestDir     + 's.gxt',  TestDir + 's.txt');
   TxtToGxt(TestDir     + 's.txt',  TestDir + 's2.gxt', 'S');
@@ -1328,14 +1433,11 @@ begin
   CompareFiles(TestDir + 'bob_j.txt', TestDir + 'bob_j2.txt');
   //CompareFiles(TestDir + 'bob_j.gxt', TestDir + 'bob_j2.gxt');
 
-  // TODO: Implement/Research Russian
-  (*
   GxtToTxt(TestDir     + 'bob_r.gxt',  TestDir + 'bob_r.txt');
   TxtToGxt(TestDir     + 'bob_r.txt',  TestDir + 'bob_r2.gxt', 'R');
   GxtToTxt(TestDir     + 'bob_r2.gxt', TestDir + 'bob_r2.txt');
   CompareFiles(TestDir + 'bob_r.txt',  TestDir + 'bob_r2.txt');
   //CompareFiles(TestDir + 'bob_r.gxt', TestDir + 'bob_r2.gxt');
-  *)
 
   GxtToTxt(TestDir     + 'bob_s.gxt',  TestDir + 'bob_s.txt');
   TxtToGxt(TestDir     + 'bob_s.txt',  TestDir + 'bob_s2.gxt', 'S');
