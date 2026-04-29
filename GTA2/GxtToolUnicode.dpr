@@ -68,6 +68,18 @@ const
   KAN_MAGIC = 'KAN';
   KAN_VER = 100;
 
+  LANG_E = 'E';
+  LANG_F = 'F';
+  LANG_G = 'G';
+  LANG_I = 'I';
+  LANG_S = 'S';
+  LANG_J = 'J';
+  LANG_R = 'R';
+  SECT_KIDX = 'KIDX';
+  SECT_KBIT = 'KBIT';
+  SECT_TKEY = 'TKEY';
+  SECT_TDAT = 'TDAT';
+
   MAX_KEY_SIZE = 8;
 
   // B1..F2 is the Russian extension for the GAME (r.gxt)
@@ -197,7 +209,7 @@ begin
     while InBytesLeft > 0 do
     begin
       if iconv(cd, @InBuf, @InBytesLeft, @OutBuf, @OutBytesLeft) = SizeUInt(-1) then
-        raise Exception.Create('iconv failed. File has probably invalid characters.');
+        raise Exception.CreateFmt('iconv %s => %s failed. File has probably invalid characters.', [FromEnc, ToEnc]);
     end;
 
     SetLength(Result, OutSize - OutBytesLeft);
@@ -301,12 +313,12 @@ var
 begin
   Result.IsUtf8 := False;
   Result.IsJapanese := False;
-  if LanguageHint = 'J' then
+  if LanguageHint = LANG_J then
   begin
     Result.Encoding := MakeEncoding(CP_SJIS);
     Result.FileEncoding := MakeEncoding(CP_SJIS);
   end
-  else if LanguageHint = 'R' then
+  else if LanguageHint = LANG_R then
   begin
     Result.Encoding := MakeEncoding(CP_RUS);
     Result.FileEncoding := MakeEncoding(CP_RUS);
@@ -359,9 +371,9 @@ begin
     end;
     Result.IsJapanese := HasCJK;
     Result.FileEncoding := MakeEncoding(CP_UTF8);
-    if HasCJK or (LanguageHint = 'J') then
+    if HasCJK or (LanguageHint = LANG_J) then
       Result.Encoding := MakeEncoding(CP_SJIS)
-    else if LanguageHint = 'R' then
+    else if LanguageHint = LANG_R then
       Result.Encoding := MakeEncoding(CP_RUS)
     else
       Result.Encoding := MakeEncoding(CP_EURO);
@@ -430,9 +442,9 @@ begin
   begin
     Result.IsJapanese := HasCJK;
     Result.FileEncoding := MakeEncoding(CP_UTF8);
-    if HasCJK or (LanguageHint = 'J') then
+    if HasCJK or (LanguageHint = LANG_J) then
       Result.Encoding := MakeEncoding(CP_SJIS)
-    else if LanguageHint = 'R' then
+    else if LanguageHint = LANG_R then
       Result.Encoding := MakeEncoding(CP_RUS)
     else
       Result.Encoding := MakeEncoding(CP_EURO);
@@ -461,15 +473,15 @@ function LoadKanjiDat: TBytes;
     // Optional checks
     if filHead.magic <> KAN_MAGIC then
       raise Exception.CreateFmt(SMagicHeaderMissing, [KAN_MAGIC]);
-    if filHead.lang <> 'J' then // do not localize
-      raise Exception.CreateFmt(SLanguageMustBe_S, ['J']); // do not localize
+    if filHead.lang <> LANG_J then
+      raise Exception.CreateFmt(SLanguageMustBe_S, [LANG_J]);
     if filHead.version <> KAN_VER then
       raise Exception.CreateFmt(SWrongFileVersion, [KAN_MAGIC, KAN_VER]);
     fs.Seek(SizeOf(filHead), soFromBeginning);
     while fs.Position < fs.Size do
     begin
       fs.Read(secHead, SizeOf(secHead));
-      if (secHead.sectionKey <> 'KIDX') and (secHead.sectionKey <> 'KBIT') then // do not localize
+      if (secHead.sectionKey <> SECT_KIDX) and (secHead.sectionKey <> SECT_KBIT) then
         WriteLn(Format(SUnknownSectionType_S, [secHead.sectionKey]));
       fs.Seek(secHead.sectionLength, soCurrent);
     end;
@@ -482,12 +494,12 @@ function LoadKanjiDat: TBytes;
     while fs.Position < fs.Size do
     begin
       fs.Read(secHead, SizeOf(secHead));
-      if secHead.sectionKey = 'KIDX' then Break; // do not localize
+      if secHead.sectionKey = SECT_KIDX then Break;
       fs.Seek(secHead.sectionLength, soCurrent);
     end;
-    if secHead.sectionKey <> 'KIDX' then // do not localize
+    if secHead.sectionKey <> SECT_KIDX then
     begin
-      raise Exception.CreateFmt(SSectionNotFound, ['KIDX']); // do not localize
+      raise Exception.CreateFmt(SSectionNotFound, [SECT_KIDX]);
     end;
     Result := nil;
     SetLength(Result, secHead.sectionLength);
@@ -638,7 +650,7 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
 
     result.Language := filHead.lang;
 
-    if result.Language = 'J' then // do not localize
+    if result.Language = LANG_J then
       KanjiIdx := LoadKanjiDat;
 
     // Optional checks
@@ -650,7 +662,7 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
     while fs.Position < fs.Size do
     begin
       fs.Read(secHead, SizeOf(secHead));
-      if (secHead.sectionKey <> 'TKEY') and (secHead.sectionKey <> 'TDAT') then // do not localize
+      if (secHead.sectionKey <> SECT_TKEY) and (secHead.sectionKey <> SECT_TDAT) then
         WriteLn(Format(SUnknownSectionType_S, [secHead.sectionKey]));
       fs.Seek(secHead.sectionLength, soCurrent);
     end;
@@ -663,12 +675,12 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
     while fs.Position < fs.Size do
     begin
       fs.Read(secHead, SizeOf(secHead));
-      if secHead.sectionKey = 'TKEY' then Break; // do not localize
+      if secHead.sectionKey = SECT_TKEY then Break;
       fs.Seek(secHead.sectionLength, soCurrent);
     end;
-    if secHead.sectionKey <> 'TKEY' then // do not localize
+    if secHead.sectionKey <> SECT_TKEY then
     begin
-      raise Exception.CreateFmt(SSectionNotFound, ['TKEY']); // do not localize
+      raise Exception.CreateFmt(SSectionNotFound, [SECT_TKEY]);
     end;
     tkLen := secHead.sectionLength;
     numEntries := tkLen div SizeOf(TKEYEntry);
@@ -680,12 +692,12 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
     while fs.Position < fs.Size do
     begin
       fs.Read(secHead, SizeOf(secHead));
-      if secHead.sectionKey = 'TDAT' then Break; // do not localize
+      if secHead.sectionKey = SECT_TDAT then Break;
       fs.Seek(secHead.sectionLength, soCurrent);
     end;
-    if secHead.sectionKey <> 'TDAT' then // do not localize
+    if secHead.sectionKey <> SECT_TDAT then
     begin
-      raise Exception.CreateFmt(SSectionNotFound, ['TDAT']); // do not localize
+      raise Exception.CreateFmt(SSectionNotFound, [SECT_TDAT]);
     end;
     SetLength(ws, secHead.sectionLength div SizeOf(WideChar));
     fs.Read(ws[1], secHead.sectionLength);
@@ -732,14 +744,14 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
 
       result.Messages[i].key := AnsiString(s);
 
-      NeedAnsi := IsBob or StartsText('netui', string(result.Messages[i].key));
+      NeedAnsi := IsBob or StartsText('netui', string(result.Messages[i].key)); // do not localize
 
       if NeedAnsi then
       begin
         {$IFDEF FPC}
-        if filHead.lang = 'R' then
+        if filHead.lang = LANG_R then
           result.Messages[i].msg := ConvertWithIconv(RawByteStringToBytes(UTF8Encode(result.Messages[i].msg)), CP_UTF8, CP_RUS)
-        else if filHead.lang = 'J' then
+        else if filHead.lang = LANG_J then
           result.Messages[i].msg := ConvertWithIconv(RawByteStringToBytes(UTF8Encode(result.Messages[i].msg)), CP_UTF8, CP_SJIS)
         else
           result.Messages[i].msg := ConvertWithIconv(RawByteStringToBytes(UTF8Encode(result.Messages[i].msg)), CP_UTF8, CP_EURO);
@@ -747,10 +759,10 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
         SetLength(amsg, Length(result.Messages[i].msg));
         for j := 1 to Length(result.Messages[i].msg) do
           amsg[j-1] := Byte(result.Messages[i].msg[j]);
-        if filHead.lang = 'R' then
+        if filHead.lang = LANG_R then
           result.Messages[i].msg := TEncoding.GetEncoding(CP_RUS).GetString(amsg)
-        else if filHead.lang = 'J' then
-          // TODO: hier kommt komisches zeug raus
+        else if filHead.lang = LANG_J then
+          // TODO: hier kommt komisches zeug raus !!!
           result.Messages[i].msg := TEncoding.GetEncoding(CP_SJIS).GetString(amsg)
         else
           result.Messages[i].msg := TEncoding.GetEncoding(CP_EURO).GetString(amsg);
@@ -758,7 +770,7 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
       end
       else
       begin
-        if filHead.lang = 'J' then
+        if filHead.lang = LANG_J then
         begin
 
           // BUG IN J.GXT: SJIS 0x8140 : IDEOGRAPHIC SP (U+3000), not in Kanji.dat
@@ -803,7 +815,7 @@ begin
       end
       else
         speaker := '';
-      rbs := UTF8Encode('[' + WideString(messages[i].key) + '] ' + WideString(speaker) + messages[i].msg + #13#10);
+      rbs := UTF8Encode('[' + WideString(messages[i].key) + '] ' + WideString(speaker) + messages[i].msg + #13#10); // do not localize
       fsOut.WriteBuffer(Pointer(rbs)^, Length(rbs));
     end;
 
@@ -918,21 +930,21 @@ var
         curkey := AnsiString(ZeroPad(string(messages[i].key), MAX_KEY_SIZE));
         msKey.Write(curkey[1], Length(curkey)*SizeOf(AnsiChar));
 
-        NeedAnsi := IsBob or StartsText('netui', string(Messages[i].key));
+        NeedAnsi := IsBob or StartsText('netui', string(Messages[i].key)); // do not localize
 
         if NeedAnsi then
         begin
           {$IFDEF FPC}
-          if Language = 'R' then
+          if Language = LANG_R then
             msg := ConvertWithIconv(UTF8Decode(Messages[i].msg), CP_UTF8, CP_RUS)
-          else if Language = 'J' then
+          else if Language = LANG_J then
             msg := ConvertWithIconv(UTF8Decode(Messages[i].msg), CP_UTF8, CP_SJIS)
           else
             msg := ConvertWithIconv(UTF8Decode(Messages[i].msg), CP_UTF8, CP_EURO);
           {$ELSE}
-          if Language = 'R' then
+          if Language = LANG_R then
             amsg := TEncoding.GetEncoding(CP_RUS).GetBytes(Messages[i].msg)
-          else if Language = 'J' then
+          else if Language = LANG_J then
             amsg := TEncoding.GetEncoding(CP_SJIS).GetBytes(Messages[i].msg)
           else
             amsg := TEncoding.GetEncoding(CP_EURO).GetBytes(Messages[i].msg);
@@ -943,7 +955,7 @@ var
         end
         else
         begin
-          if Language = 'J' then
+          if Language = LANG_J then
           begin
             msg := WideStringToGameCode_J(messages[i].msg);
 
@@ -981,13 +993,13 @@ var
       gxtHead.version := GXT_VER;
       fsOut.Write(gxtHead, SizeOf(gxtHead));
 
-      secHead.sectionKey := 'TKEY'; // do not localize
+      secHead.sectionKey := SECT_TKEY;
       secHead.sectionLength := msKey.Size;
       fsOut.Write(secHead, SizeOf(secHead));
       msKey.Position := 0;
       fsOut.CopyFrom(msKey, msKey.Size);
 
-      secHead.sectionKey := 'TDAT'; // do not localize
+      secHead.sectionKey := SECT_TDAT;
       secHead.sectionLength := msDat.Size;
       fsOut.Write(secHead, SizeOf(secHead));
       msDat.Position := 0;
@@ -1103,7 +1115,7 @@ var
       Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, MakeEncoding(CP_SJIS), MakeEncoding(CP_UTF8))))
     //else if Assigned(info.Encoding) then
     //  Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, info.Encoding, MakeEncoding(CP_UTF8))));
-    else if Language = 'R' then
+    else if Language = LANG_R then
       Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, MakeEncoding(CP_RUS), MakeEncoding(CP_UTF8))));
     else
       Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, MakeEncoding(CP_EURO), MakeEncoding(CP_UTF8))));
@@ -1134,7 +1146,7 @@ var
       Result := MakeEncoding(CP_SJIS).GetString(B, P, Len)
     //else if Assigned(info.Encoding) then
     //  Result := info.Encoding.GetString(B, P, Len)
-    else if Language = 'R' then
+    else if Language = LANG_R then
       Result := MakeEncoding(CP_RUS).GetString(B, P, Len)
     else
       Result := MakeEncoding(CP_EURO).GetString(B, P, Len);
@@ -1321,7 +1333,7 @@ const
   {$ENDIF}
 begin
   GxtToTxt(TestDir + 'e.gxt', TestDir + 'e.txt', false);
-  TxtToGxt(TestDir + 'e.txt', TestDir + 'e2.gxt', 'E', false);
+  TxtToGxt(TestDir + 'e.txt', TestDir + 'e2.gxt', LANG_E, false);
   GxtToTxt(TestDir + 'e2.gxt', TestDir + 'e2.txt', false);
   CompareFiles(TestDir + 'e.txt', TestDir + 'e2.txt');
   // TODO: Currently our re-generated GXT files do NOT fit the original
@@ -1334,79 +1346,79 @@ begin
   //CompareFiles(TestDir + 'e.gxt', TestDir + 'e2.gxt');
 
   GxtToTxt(TestDir     + 'f.gxt',  TestDir + 'f.txt', false);
-  TxtToGxt(TestDir     + 'f.txt',  TestDir + 'f2.gxt', 'F', false);
+  TxtToGxt(TestDir     + 'f.txt',  TestDir + 'f2.gxt', LANG_F, false);
   GxtToTxt(TestDir     + 'f2.gxt', TestDir + 'f2.txt', false);
   CompareFiles(TestDir + 'f.txt',  TestDir + 'f2.txt');
   //CompareFiles(TestDir + 'f.gxt', TestDir + 'f2.gxt');
 
   GxtToTxt(TestDir     + 'g.gxt',  TestDir + 'g.txt', false);
-  TxtToGxt(TestDir     + 'g.txt',  TestDir + 'g2.gxt', 'G', false);
+  TxtToGxt(TestDir     + 'g.txt',  TestDir + 'g2.gxt', LANG_G, false);
   GxtToTxt(TestDir     + 'g2.gxt', TestDir + 'g2.txt', false);
   CompareFiles(TestDir + 'g.txt',  TestDir + 'g2.txt');
   //CompareFiles(TestDir + 'g.gxt', TestDir + 'g2.gxt');
 
   GxtToTxt(TestDir     + 'i.gxt',  TestDir + 'i.txt', false);
-  TxtToGxt(TestDir     + 'i.txt',  TestDir + 'i2.gxt', 'I', false);
+  TxtToGxt(TestDir     + 'i.txt',  TestDir + 'i2.gxt', LANG_I, false);
   GxtToTxt(TestDir     + 'i2.gxt', TestDir + 'i2.txt', false);
   CompareFiles(TestDir + 'i.txt',  TestDir + 'i2.txt');
   //CompareFiles(TestDir + 'i.gxt', TestDir + 'i2.gxt');
 
   GxtToTxt(TestDir + 'j.gxt', TestDir + 'j.txt', false);
-  TxtToGxt(TestDir + 'j.txt', TestDir + 'j2.gxt', 'J', false);
+  TxtToGxt(TestDir + 'j.txt', TestDir + 'j2.gxt', LANG_J, false);
   GxtToTxt(TestDir + 'j2.gxt', TestDir + 'j2.txt', false);
   CompareFiles(TestDir + 'j.txt', TestDir + 'j2.txt');
   //CompareFiles(TestDir + 'j.gxt', TestDir + 'j2.gxt');
 
   GxtToTxt(TestDir     + 'r.gxt',  TestDir + 'r.txt', false);
-  TxtToGxt(TestDir     + 'r.txt',  TestDir + 'r2.gxt', 'R', false);
+  TxtToGxt(TestDir     + 'r.txt',  TestDir + 'r2.gxt', LANG_R, false);
   GxtToTxt(TestDir     + 'r2.gxt', TestDir + 'r2.txt', false);
   CompareFiles(TestDir + 'r.txt',  TestDir + 'r2.txt');
   //CompareFiles(TestDir + 'r.gxt', TestDir + 'r2.gxt');
 
   GxtToTxt(TestDir     + 's.gxt',  TestDir + 's.txt', false);
-  TxtToGxt(TestDir     + 's.txt',  TestDir + 's2.gxt', 'S', false);
+  TxtToGxt(TestDir     + 's.txt',  TestDir + 's2.gxt', LANG_S, false);
   GxtToTxt(TestDir     + 's2.gxt', TestDir + 's2.txt', false);
   CompareFiles(TestDir + 's.txt',  TestDir + 's2.txt');
   //CompareFiles(TestDir + 's.gxt', TestDir + 's2.gxt');
 
   GxtToTxt(TestDir + 'bob_e.gxt', TestDir + 'bob_e.txt', true);
-  TxtToGxt(TestDir + 'bob_e.txt', TestDir + 'bob_e2.gxt', 'E', true);
+  TxtToGxt(TestDir + 'bob_e.txt', TestDir + 'bob_e2.gxt', LANG_E, true);
   GxtToTxt(TestDir + 'bob_e2.gxt', TestDir + 'bob_e2.txt', true);
   CompareFiles(TestDir + 'bob_e.txt', TestDir + 'bob_e2.txt');
   //CompareFiles(TestDir + 'bob_e.gxt', TestDir + 'bob_e2.gxt');
 
   GxtToTxt(TestDir     + 'bob_f.gxt',  TestDir + 'bob_f.txt', true);
-  TxtToGxt(TestDir     + 'bob_f.txt',  TestDir + 'bob_f2.gxt', 'F', true);
+  TxtToGxt(TestDir     + 'bob_f.txt',  TestDir + 'bob_f2.gxt', LANG_F, true);
   GxtToTxt(TestDir     + 'bob_f2.gxt', TestDir + 'bob_f2.txt', true);
   CompareFiles(TestDir + 'bob_f.txt',  TestDir + 'bob_f2.txt');
   //CompareFiles(TestDir + 'bob_f.gxt', TestDir + 'bob_f2.gxt');
 
   GxtToTxt(TestDir     + 'bob_g.gxt',  TestDir + 'bob_g.txt', true);
-  TxtToGxt(TestDir     + 'bob_g.txt',  TestDir + 'bob_g2.gxt', 'G', true);
+  TxtToGxt(TestDir     + 'bob_g.txt',  TestDir + 'bob_g2.gxt', LANG_G, true);
   GxtToTxt(TestDir     + 'bob_g2.gxt', TestDir + 'bob_g2.txt', true);
   CompareFiles(TestDir + 'bob_g.txt',  TestDir + 'bob_g2.txt');
   //CompareFiles(TestDir + 'bob_g.gxt', TestDir + 'bob_g2.gxt');
 
   GxtToTxt(TestDir     + 'bob_i.gxt',  TestDir + 'bob_i.txt', true);
-  TxtToGxt(TestDir     + 'bob_i.txt',  TestDir + 'bob_i2.gxt', 'I', true);
+  TxtToGxt(TestDir     + 'bob_i.txt',  TestDir + 'bob_i2.gxt', LANG_I, true);
   GxtToTxt(TestDir     + 'bob_i2.gxt', TestDir + 'bob_i2.txt', true);
   CompareFiles(TestDir + 'bob_i.txt',  TestDir + 'bob_i2.txt');
   //CompareFiles(TestDir + 'bob_i.gxt', TestDir + 'bob_i2.gxt');
 
   GxtToTxt(TestDir + 'bob_j.gxt', TestDir + 'bob_j.txt', true);
-  TxtToGxt(TestDir + 'bob_j.txt', TestDir + 'bob_j2.gxt', 'J', true);
+  TxtToGxt(TestDir + 'bob_j.txt', TestDir + 'bob_j2.gxt', LANG_J, true);
   GxtToTxt(TestDir + 'bob_j2.gxt', TestDir + 'bob_j2.txt', true);
   CompareFiles(TestDir + 'bob_j.txt', TestDir + 'bob_j2.txt');
   //CompareFiles(TestDir + 'bob_j.gxt', TestDir + 'bob_j2.gxt');
 
   GxtToTxt(TestDir     + 'bob_r.gxt',  TestDir + 'bob_r.txt', true);
-  TxtToGxt(TestDir     + 'bob_r.txt',  TestDir + 'bob_r2.gxt', 'R', true);
+  TxtToGxt(TestDir     + 'bob_r.txt',  TestDir + 'bob_r2.gxt', LANG_R, true);
   GxtToTxt(TestDir     + 'bob_r2.gxt', TestDir + 'bob_r2.txt', true);
   CompareFiles(TestDir + 'bob_r.txt',  TestDir + 'bob_r2.txt');
   //CompareFiles(TestDir + 'bob_r.gxt', TestDir + 'bob_r2.gxt');
 
   GxtToTxt(TestDir     + 'bob_s.gxt',  TestDir + 'bob_s.txt', true);
-  TxtToGxt(TestDir     + 'bob_s.txt',  TestDir + 'bob_s2.gxt', 'S', true);
+  TxtToGxt(TestDir     + 'bob_s.txt',  TestDir + 'bob_s2.gxt', LANG_S, true);
   GxtToTxt(TestDir     + 'bob_s2.gxt', TestDir + 'bob_s2.txt', true);
   CompareFiles(TestDir + 'bob_s.txt',  TestDir + 'bob_s2.txt');
   //CompareFiles(TestDir + 'bob_s.gxt', TestDir + 'bob_s2.gxt');
@@ -1424,9 +1436,9 @@ var
   sTmp: string;
 begin
   Result := ' ';
-  for chTmp in ['E', 'G', 'F', 'I', 'S', 'R', 'J'] do
+  for chTmp in [LANG_E, LANG_G, LANG_F, LANG_I, LANG_S, LANG_R, LANG_J] do
     if SameText(ExtractFileName(InFile), chTmp + '.TXT') or SameText(ExtractFileName(InFile), 'BOB_' + chTmp + '.TXT') then Result := chTmp;
-  while not CharInSet(Result, ['E', 'G', 'F', 'I', 'S', 'R', 'J']) do
+  while not CharInSet(Result, [LANG_E, LANG_G, LANG_F, LANG_I, LANG_S, LANG_R, LANG_J]) do
   begin
     WriteLn(Format(S_ENTER_LANGUAGE, [InFile]));
     ReadLn(sTmp);
