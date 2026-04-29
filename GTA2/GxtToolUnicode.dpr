@@ -850,6 +850,17 @@ var
     w: Word;
     enc: TEncoding;
   begin
+    {$IFNDEF FPC}
+    if CodePage <> CP_SJIS then
+    begin
+      b := TEncoding.GetEncoding(CodePage).GetBytes(s);
+      result := '';
+      for i := 0 to Length(b)-1 do
+        result := result + WideChar(b[i]);
+      exit;
+    end;
+    {$ENDIF}
+
     Result := '';
     enc := MakeEncoding(Codepage);
 
@@ -944,20 +955,10 @@ var
 
         if NeedAnsi and (Language <> LANG_J) then
         begin
-          {$IFDEF FPC}
           if Language = LANG_R then
             msg := WideStringToCodePage16(messages[i].msg, CP_RUS)
           else
             msg := WideStringToCodePage16(messages[i].msg, CP_EURO);
-          {$ELSE}
-          if Language = LANG_R then
-            amsg := TEncoding.GetEncoding(CP_RUS).GetBytes(Messages[i].msg)
-          else
-            amsg := TEncoding.GetEncoding(CP_EURO).GetBytes(Messages[i].msg);
-          msg := '';
-          for j := 0 to Length(amsg)-1 do
-            msg := msg + WideChar(amsg[j]);
-          {$ENDIF}
         end
         else if Language = LANG_J then
         begin
