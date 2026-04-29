@@ -10,7 +10,6 @@
 }
 
 // TODO: Find/Implement inofficial polish language
-// TODO: Test if all testcases work with FPC
 
 {$IFDEF FPC}
   {$mode delphi}
@@ -24,6 +23,7 @@
 uses
   SysUtils,
   Classes,
+  StrUtils,
   baseunix,
   ctypes;
 {$ELSE}
@@ -161,6 +161,16 @@ begin
     Move(PAnsiChar(S)^, Result[0], Length(S));
 end;
 
+function BytesToWideStringRaw(const Bytes: TBytes): WideString;
+var
+  Len: Integer;
+begin
+  Len := Length(Bytes) div 2; // each WideChar = 2 bytes
+  SetLength(Result, Len);
+  if Len > 0 then
+    Move(Bytes[0], Result[1], Len * SizeOf(WideChar));
+end;
+
 {$IFDEF FPC}
 type
   iconv_t = Pointer;
@@ -282,7 +292,6 @@ begin
   B := ReadAllBytesFromFile(FileName);
   B := RemovePreamble(B, SourceEncoding);
   Result := ConvertWithIconv(B, SourceEncoding, TargetEncoding);
-
 {$ELSE}
 begin
   Result := TargetEncoding.GetBytes(TFile.ReadAllText(FileName, SourceEncoding));
@@ -613,16 +622,6 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
     end;
   end;
 
-  function BytesToWideStringRaw(const Bytes: TBytes): WideString;
-  var
-    Len: Integer;
-  begin
-    Len := Length(Bytes) div 2; // each WideChar = 2 bytes
-    SetLength(Result, Len);
-    if Len > 0 then
-      Move(Bytes[0], Result[1], Len * SizeOf(WideChar));
-  end;
-
   type
     TDecodeGXTAnswer = record
       Language: AnsiChar;
@@ -770,39 +769,34 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
           end;
         end;
         {$IFDEF FPC}
+        SetLength(amsg, Length(amsg)+1);
+        amsg[High(amsg)] := 0;
         if filHead.lang = LANG_R then
-          result.Messages[i].msg := ConvertWithIconv(RawByteStringToBytes(UTF8Encode(result.Messages[i].msg)), CP_UTF8, CP_RUS)
-        //else if filHead.lang = LANG_J then
-        //  result.Messages[i].msg := ConvertWithIconv(RawByteStringToBytes(UTF8Encode(result.Messages[i].msg)), CP_UTF8, CP_SJIS)
+          result.Messages[i].msg := UTF8Decode(RawByteString(ConvertWithIconv(amsg, MakeEncoding(CP_RUS), MakeEncoding(CP_UTF8))))
         else
-          result.Messages[i].msg := ConvertWithIconv(RawByteStringToBytes(UTF8Encode(result.Messages[i].msg)), CP_UTF8, CP_EURO);
+          result.Messages[i].msg := UTF8Decode(RawByteString(ConvertWithIconv(amsg, MakeEncoding(CP_EURO), MakeEncoding(CP_UTF8))));
         {$ELSE}
         if filHead.lang = LANG_R then
           result.Messages[i].msg := TEncoding.GetEncoding(CP_RUS).GetString(amsg)
-        //else if filHead.lang = LANG_J then
-        //  result.Messages[i].msg := TEncoding.GetEncoding(CP_SJIS).GetString(amsg)
         else
           result.Messages[i].msg := TEncoding.GetEncoding(CP_EURO).GetString(amsg);
         {$ENDIF}
       end
+      else if filHead.lang = LANG_J then
+      begin
+
+        // BUG IN J.GXT: SJIS 0x8140 : IDEOGRAPHIC SP (U+3000), not in Kanji.dat
+        for j := 1 to Length(result.Messages[i].msg) do
+          if Word(result.Messages[i].msg[j]) = $8140 then
+            if not NeedAnsi and not IsKanjiValid(KanjiIdx, Word(result.Messages[i].msg[j])) then
+              result.Messages[i].msg[j] := ' '; // silently replace it with a regular whitespace
+
+        // Convert JSIS-16 to UTF-16
+        result.Messages[i].msg := GameCodeToWideString_J(result.Messages[i].msg);
+      end
       else
       begin
-        if filHead.lang = LANG_J then
-        begin
-
-          // BUG IN J.GXT: SJIS 0x8140 : IDEOGRAPHIC SP (U+3000), not in Kanji.dat
-          for j := 1 to Length(result.Messages[i].msg) do
-            if Word(result.Messages[i].msg[j]) = $8140 then
-              if not NeedAnsi and not IsKanjiValid(KanjiIdx, Word(result.Messages[i].msg[j])) then
-                result.Messages[i].msg[j] := ' '; // silently replace it with a regular whitespace
-
-          // Convert JSIS-16 to UTF-16
-          result.Messages[i].msg := GameCodeToWideString_J(result.Messages[i].msg);
-        end
-        else
-        begin
-          result.Messages[i].msg := GameCodeToWideString_EU_RU(result.Messages[i].msg);
-        end;
+        result.Messages[i].msg := GameCodeToWideString_EU_RU(result.Messages[i].msg);
       end;
     end;
   end;
@@ -848,7 +842,7 @@ procedure TxtToGxt(const InFile, OutFile: string; Language: Char; IsBob: boolean
 var
   KanjiIdx: TBytes;
 
-  function WideStringToGameCode_J(s: WideString): WideString;
+  function WideStringToCodePage16(s: WideString; CodePage: Smallint): WideString;
   var
     i: Integer;
     ch: WideString;
@@ -857,7 +851,7 @@ var
     enc: TEncoding;
   begin
     Result := '';
-    enc := MakeEncoding(CP_SJIS); // CP932 / Shift-JIS
+    enc := MakeEncoding(Codepage);
 
     try
       for i := 1 to Length(s) do
@@ -873,7 +867,7 @@ var
         begin
           { Rest becomes Shift-JIS, but always 16 bit }
           {$IFDEF FPC}
-          b := ConvertWithIconv(RawByteStringToBytes(Utf8Encode(s[i])), MakeEncoding(CP_UTF8), MakeEncoding(CP_SJIS));
+          b := ConvertWithIconv(RawByteStringToBytes(Utf8Encode(s[i])), MakeEncoding(CP_UTF8), MakeEncoding(Codepage));
           {$ELSE}
           b := enc.GetBytes(ch);
           {$ENDIF}
@@ -927,7 +921,6 @@ var
     secHead: TGTA2SectionHeader;
     sjis: word;
     NeedAnsi: boolean;
-    amsg: TBytes;
   begin
     msKey := TMemoryStream.Create;
     msDat := TMemoryStream.Create;
@@ -953,16 +946,12 @@ var
         begin
           {$IFDEF FPC}
           if Language = LANG_R then
-            msg := ConvertWithIconv(UTF8Decode(Messages[i].msg), CP_UTF8, CP_RUS)
-          else if Language = LANG_J then
-            msg := ConvertWithIconv(UTF8Decode(Messages[i].msg), CP_UTF8, CP_SJIS)
+            msg := WideStringToCodePage16(messages[i].msg, CP_RUS)
           else
-            msg := ConvertWithIconv(UTF8Decode(Messages[i].msg), CP_UTF8, CP_EURO);
+            msg := WideStringToCodePage16(messages[i].msg, CP_EURO);
           {$ELSE}
           if Language = LANG_R then
             amsg := TEncoding.GetEncoding(CP_RUS).GetBytes(Messages[i].msg)
-          else if Language = LANG_J then
-            amsg := TEncoding.GetEncoding(CP_SJIS).GetBytes(Messages[i].msg)
           else
             amsg := TEncoding.GetEncoding(CP_EURO).GetBytes(Messages[i].msg);
           msg := '';
@@ -970,29 +959,24 @@ var
             msg := msg + WideChar(amsg[j]);
           {$ENDIF}
         end
-        else
+        else if Language = LANG_J then
         begin
-          if Language = LANG_J then
+          msg := WideStringToCodePage16(messages[i].msg, CP_SJIS);
+          for j := Low(msg) to High(msg) do
           begin
-            msg := WideStringToGameCode_J(messages[i].msg);
-
-            for j := Low(msg) to High(msg) do
+            Sjis := Word(msg[j]);
+            if not (Sjis in [{ $0A, $0D, }$20]) and not NeedAnsi and not IsKanjiValid(KanjiIdx, Sjis) then
             begin
-              Sjis := Word(msg[j]);
-              if not (Sjis in [{ $0A, $0D, }$20]) and not NeedAnsi and not IsKanjiValid(KanjiIdx, Sjis) then
-              begin
-                // BUG IN J.GXT: SJIS 0x8140 : IDEOGRAPHIC SPACE (U+3000), not in Kanji.dat
-                if Sjis = $8140 then
-                  msg[j] := ' ' // silently fix it by replacing it with a normal space
-                else
-                  WriteLn(Format(S_IllegalKanji, ['0x' + IntToHex(Sjis, 4)]));
-              end;
+              // BUG IN J.GXT: SJIS 0x8140 : IDEOGRAPHIC SPACE (U+3000), not in Kanji.dat
+              if Sjis = $8140 then
+                msg[j] := ' ' // silently fix it by replacing it with a normal space
+              else
+                WriteLn(Format(S_IllegalKanji, ['0x' + IntToHex(Sjis, 4)]));
             end;
-
-          end
-          else
-            msg := WideStringToGameCode_EU_RU(messages[i].msg);
-        end;
+          end;
+        end
+        else
+          msg := WideStringToGameCode_EU_RU(messages[i].msg);
 
         msg := msg + #0;
 
@@ -1131,9 +1115,9 @@ var
     else if Info.IsJapanese then
       Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, MakeEncoding(CP_SJIS), MakeEncoding(CP_UTF8))))
     //else if Assigned(info.Encoding) then
-    //  Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, info.Encoding, MakeEncoding(CP_UTF8))));
+    //  Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, info.Encoding, MakeEncoding(CP_UTF8))))
     else if Language = LANG_R then
-      Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, MakeEncoding(CP_RUS), MakeEncoding(CP_UTF8))));
+      Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, MakeEncoding(CP_RUS), MakeEncoding(CP_UTF8))))
     else
       Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, MakeEncoding(CP_EURO), MakeEncoding(CP_UTF8))));
   end;
