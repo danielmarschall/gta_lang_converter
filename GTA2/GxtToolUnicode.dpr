@@ -132,6 +132,34 @@ type
   end;
   TGTAMessagesArray = array of TGTAMessage;
 
+// --- Misc functions
+
+function FileContainsString(const FileName, SearchText: string): Boolean;
+var
+  FS: TFileStream;
+  Buffer: AnsiString;
+  Size: Int64;
+begin
+  Result := False;
+
+  if not FileExists(FileName) then
+    Exit;
+
+  FS := TFileStream.Create(FileName, fmOpenRead or fmShareDenyNone);
+  try
+    Size := FS.Size;
+    if Size <= 0 then
+      Exit;
+
+    SetLength(Buffer, Size);
+    FS.ReadBuffer(Buffer[1], Size);
+
+    Result := Pos(AnsiString(SearchText), Buffer) > 0;
+  finally
+    FS.Free;
+  end;
+end;
+
 // --- Encoding Stuff
 
 const
@@ -1456,7 +1484,7 @@ var
   IsBob: Boolean;
 begin
   try
-    IsBob := StartsText('bob_', ExtractFileName(InFile)); // TODO: better look for "game manager" keys in the file
+    IsBob := StartsText('bob_', ExtractFileName(InFile)) or FileContainsString(InFile, 'domovie');
     Lang := GuessOrAskForLanguage(InFile);
          if ExtractFileExt(InFile)         = '.gxt'  then GxtToTxt(InFile, ChangeFileExt(InFile, '.txt'), IsBob)
     else if ExtractFileExt(InFile)         = '.GXT'  then GxtToTxt(InFile, ChangeFileExt(InFile, '.TXT'), IsBob)
@@ -1576,7 +1604,7 @@ begin
       raise Exception.Create(S_INVALID_FILE);
   end;
 
-  IsBob := StartsText('bob_', ExtractFileName(InFile)); // TODO: better look for "game manager" keys in the file
+  IsBob := StartsText('bob_', ExtractFileName(InFile)) or FileContainsString(InFile, 'domovie');
   Ext := LowerCase(ExtractFileExt(InFile));
   if Ext = '.gxt' then
   begin
