@@ -9,8 +9,6 @@
   More information here: https://misc.daniel-marschall.de/spiele/gta2/
 }
 
-// TODO: Find/Implement inofficial polish language
-
 {$IFDEF FPC}
   {$mode delphi}
   {$H+}
@@ -1467,7 +1465,7 @@ var
 begin
   Result := ' ';
   for chTmp in [LANG_E, LANG_G, LANG_F, LANG_I, LANG_S, LANG_R, LANG_J] do
-    if SameText(ExtractFileName(InFile), chTmp + '.TXT') or SameText(ExtractFileName(InFile), 'BOB_' + chTmp + '.TXT') then Result := chTmp;
+    if SameText(ChangeFileExt(ExtractFileName(InFile),''), chTmp) or SameText(ChangeFileExt(ExtractFileName(InFile),''), 'BOB_' + chTmp) then Result := chTmp;
   while not CharInSet(Result, [LANG_E, LANG_G, LANG_F, LANG_I, LANG_S, LANG_R, LANG_J]) do
   begin
     WriteLn(Format(S_ENTER_LANGUAGE, [InFile]));
