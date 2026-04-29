@@ -9,8 +9,6 @@
   More information here: https://misc.daniel-marschall.de/spiele/gta2/
 }
 
-// TODO: Russian is not fully implemented. Testcases currently fail.
-
 {$IFDEF FPC}
   {$mode delphi}
   {$H+}
@@ -75,8 +73,7 @@ const
   // B1..F2 is the Russian extension for the GAME (r.gxt)
   // The mapping can be found for example in bil.sty
   // This DOES NOT apply to bob_r.gxt since the GTA Manager works with ANSI,
-  // not with the game mapping!
-  // (TODO: Our game needs to handle bob_*.gxt differently!)
+  // and it does also not apply for the "netui" messages (since they are also ANSI Windows dialog boxes).
   CHARSET_GAME_EU_RU: array[$0080..$00F2] of WideChar = (
     {80} #$00C0{À}, #$00C1{Á}, #$00C2{Â}, #$00C4{Ä}, #$00C6{Æ}, #$00C7{Ç}, #$00C8{È}, #$00C9{É},
     {88} #$00CA{Ê}, #$00CB{Ë}, #$00CC{Ì}, #$00CD{Í}, #$00CE{Î}, #$00CF{Ï}, #$00D2{Ò}, #$00D3{Ó},
@@ -293,7 +290,7 @@ begin
             ((CP >= $F900) and (CP <= $FAFF));
 end;
 
-function DetectFileEncoding(const FileName: string): TFileEncInfo;
+function DetectFileEncoding(const FileName: string; LanguageHint: Char): TFileEncInfo;
 var
   RawBytes, Sample: TBytes;
   I: Integer;
@@ -302,12 +299,23 @@ var
   CodePoint: Cardinal;
   SJISBytes: Integer;
 begin
-  // TODO: CP_RUS detection?
-
   Result.IsUtf8 := False;
   Result.IsJapanese := False;
-  Result.Encoding := MakeEncoding(CP_EURO);
-  Result.FileEncoding := MakeEncoding(CP_EURO);
+  if LanguageHint = 'J' then
+  begin
+    Result.Encoding := MakeEncoding(CP_SJIS);
+    Result.FileEncoding := MakeEncoding(CP_SJIS);
+  end
+  else if LanguageHint = 'R' then
+  begin
+    Result.Encoding := MakeEncoding(CP_RUS);
+    Result.FileEncoding := MakeEncoding(CP_RUS);
+  end
+  else
+  begin
+    Result.Encoding := MakeEncoding(CP_EURO);
+    Result.FileEncoding := MakeEncoding(CP_EURO);
+  end;
 
   RawBytes := ReadAllBytesFromFile(FileName);
   if Length(RawBytes) = 0 then
@@ -351,8 +359,10 @@ begin
     end;
     Result.IsJapanese := HasCJK;
     Result.FileEncoding := MakeEncoding(CP_UTF8);
-    if HasCJK then
+    if HasCJK or (LanguageHint = 'J') then
       Result.Encoding := MakeEncoding(CP_SJIS)
+    else if LanguageHint = 'R' then
+      Result.Encoding := MakeEncoding(CP_RUS)
     else
       Result.Encoding := MakeEncoding(CP_EURO);
     Exit;
@@ -420,8 +430,10 @@ begin
   begin
     Result.IsJapanese := HasCJK;
     Result.FileEncoding := MakeEncoding(CP_UTF8);
-    if HasCJK then
+    if HasCJK or (LanguageHint = 'J') then
       Result.Encoding := MakeEncoding(CP_SJIS)
+    else if LanguageHint = 'R' then
+      Result.Encoding := MakeEncoding(CP_RUS)
     else
       Result.Encoding := MakeEncoding(CP_EURO);
     Exit;
@@ -618,6 +630,7 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
     s: String;
     KanjiIdx: TBytes;
     NeedAnsi: boolean;
+    amsg: Tbytes;
   begin
     fs.Position := 0;
 
@@ -711,7 +724,6 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
       result.Messages[i].msg := TEncoding.Unicode.GetString(msgBytes);
       {$ENDIF}
 
-
       s := string(PAnsiChar(@tkAry[i].key[0])); // stops at #0
 
       // BUG IN BOB_J.GXT: They accidentally translated "/" (U+002F) to "／" (U+FF0F) in the key!
@@ -724,25 +736,24 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
 
       if NeedAnsi then
       begin
-
-
-        // TODO: xxx ???
-
-
         {$IFDEF FPC}
         if filHead.lang = 'R' then
-          result.Messages[i].msg := UTF8Decode(BytesToRawString(ConvertWithIconv(RawByteStringToBytes(RawByteString(result.Messages[i].msg)), CP_RUS,  CP_UTF8)))
+          result.Messages[i].msg := ConvertWithIconv(RawByteStringToBytes(UTF8Encode(result.Messages[i].msg)), CP_UTF8, CP_RUS)
         else if filHead.lang = 'J' then
-          result.Messages[i].msg := UTF8Decode(BytesToRawString(ConvertWithIconv(RawByteStringToBytes(RawByteString(result.Messages[i].msg)), CP_SJIS, CP_UTF8)))
+          result.Messages[i].msg := ConvertWithIconv(RawByteStringToBytes(UTF8Encode(result.Messages[i].msg)), CP_UTF8, CP_SJIS)
         else
-          result.Messages[i].msg := UTF8Decode(BytesToRawString(ConvertWithIconv(RawByteStringToBytes(RawByteString(result.Messages[i].msg)), CP_EURO, CP_UTF8)));
+          result.Messages[i].msg := ConvertWithIconv(RawByteStringToBytes(UTF8Encode(result.Messages[i].msg)), CP_UTF8, CP_EURO);
         {$ELSE}
+        SetLength(amsg, Length(result.Messages[i].msg));
+        for j := 1 to Length(result.Messages[i].msg) do
+          amsg[j-1] := Byte(result.Messages[i].msg[j]);
         if filHead.lang = 'R' then
-          result.Messages[i].msg := TEncoding.GetEncoding(CP_RUS ).GetString(RawByteStringToBytes(RawByteString(result.Messages[i].msg)))
+          result.Messages[i].msg := TEncoding.GetEncoding(CP_RUS).GetString(amsg)
         else if filHead.lang = 'J' then
-          result.Messages[i].msg := TEncoding.GetEncoding(CP_SJIS).GetString(RawByteStringToBytes(RawByteString(result.Messages[i].msg)))
+          // TODO: hier kommt komisches zeug raus
+          result.Messages[i].msg := TEncoding.GetEncoding(CP_SJIS).GetString(amsg)
         else
-          result.Messages[i].msg := TEncoding.GetEncoding(CP_EURO).GetString(RawByteStringToBytes(RawByteString(result.Messages[i].msg)));
+          result.Messages[i].msg := TEncoding.GetEncoding(CP_EURO).GetString(amsg);
         {$ENDIF}
       end
       else
@@ -877,7 +888,7 @@ var
 
   procedure EncodeGXT(messages: TGTAMessagesArray; fsOut: TFileStream);
   var
-    i: integer;
+    i, j: integer;
     msg: WideString;
     guywc: WideChar;
     curoffset: Cardinal;
@@ -885,9 +896,9 @@ var
     msKey, msDat: TMemoryStream;
     gxtHead: TGTA2Header;
     secHead: TGTA2SectionHeader;
-    j: integer;
     sjis: word;
     NeedAnsi: boolean;
+    amsg: TBytes;
   begin
     msKey := TMemoryStream.Create;
     msDat := TMemoryStream.Create;
@@ -911,28 +922,24 @@ var
 
         if NeedAnsi then
         begin
-
-
-        // TODO: xxx ???
           {$IFDEF FPC}
           if Language = 'R' then
-            msg := UTF8Decode(BytesToRawString(ConvertWithIconv(RawByteStringToBytes(RawByteString(Messages[i].msg)), CP_RUS,  CP_UTF8)))
+            msg := ConvertWithIconv(UTF8Decode(Messages[i].msg), CP_UTF8, CP_RUS)
           else if Language = 'J' then
-            msg := UTF8Decode(BytesToRawString(ConvertWithIconv(RawByteStringToBytes(RawByteString(Messages[i].msg)), CP_SJIS, CP_UTF8)))
+            msg := ConvertWithIconv(UTF8Decode(Messages[i].msg), CP_UTF8, CP_SJIS)
           else
-            msg := UTF8Decode(BytesToRawString(ConvertWithIconv(RawByteStringToBytes(RawByteString(Messages[i].msg)), CP_EURO, CP_UTF8)));
+            msg := ConvertWithIconv(UTF8Decode(Messages[i].msg), CP_UTF8, CP_EURO);
           {$ELSE}
           if Language = 'R' then
-            msg := TEncoding.GetEncoding(CP_RUS ).GetString(RawByteStringToBytes(RawByteString(Messages[i].msg)))
+            amsg := TEncoding.GetEncoding(CP_RUS).GetBytes(Messages[i].msg)
           else if Language = 'J' then
-            msg := TEncoding.GetEncoding(CP_SJIS).GetString(RawByteStringToBytes(RawByteString(Messages[i].msg)))
+            amsg := TEncoding.GetEncoding(CP_SJIS).GetBytes(Messages[i].msg)
           else
-            msg := TEncoding.GetEncoding(CP_EURO).GetString(RawByteStringToBytes(RawByteString(Messages[i].msg)));
+            amsg := TEncoding.GetEncoding(CP_EURO).GetBytes(Messages[i].msg);
+          msg := '';
+          for j := 0 to Length(amsg)-1 do
+            msg := msg + WideChar(amsg[j]);
           {$ENDIF}
-
-
-
-
         end
         else
         begin
@@ -1186,7 +1193,7 @@ var
   fsOut: TFileStream;
   Lines: TArray<WideString>;
 begin
-  Info := DetectFileEncoding(InFile);
+  Info := DetectFileEncoding(InFile, Language);
 
   IsJapanese := Info.IsJapanese;
   if IsJapanese then
