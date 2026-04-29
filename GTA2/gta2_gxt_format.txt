@@ -114,7 +114,7 @@ Section type: TDAT (contains texts)
 
 		The rendering is done in the *.sty files, in addition with 16x16 glyphs implemented in Kanji.dat
 
-* The GAME MANAGER Language (bob_*.gxt) contains special characters in the ANSI encoding:
+* The GAME MANAGER Language (bob_*.gxt) as well as the "netui" keys in the main language file contain characters in the ANSI encoding:
 
 	The "intended" codepages are:
 	- For European (E, F, G, I, S) = Codepage 1252
