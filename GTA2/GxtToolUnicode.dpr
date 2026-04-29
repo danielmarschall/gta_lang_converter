@@ -9,6 +9,9 @@
   More information here: https://misc.daniel-marschall.de/spiele/gta2/
 }
 
+// TODO: Find/Implement inofficial polish language
+// TODO: Test if all testcases work with FPC
+
 {$IFDEF FPC}
   {$mode delphi}
   {$H+}
@@ -82,10 +85,11 @@ const
 
   MAX_KEY_SIZE = 8;
 
-  // B1..F2 is the Russian extension for the GAME (r.gxt)
-  // The mapping can be found for example in bil.sty
-  // This DOES NOT apply to bob_r.gxt since the GTA Manager works with ANSI,
-  // and it does also not apply for the "netui" messages (since they are also ANSI Windows dialog boxes).
+  // 80..B0 is the European extension for the GAME (e.gxt, g.gxt, f.gxt, ...), and
+  // B1..F2 is the Russian extension for the GAME (r.gxt).
+  // The ordering of the characters can be found by looking into the characters at bil.sty.
+  // This charset tables DOES NOT apply to bob_r.gxt since the GTA Manager works with ANSI,
+  // and it does also DOES NOT apply for the "netui" messages (since they are also ANSI Windows dialog boxes).
   CHARSET_GAME_EU_RU: array[$0080..$00F2] of WideChar = (
     {80} #$00C0{À}, #$00C1{Á}, #$00C2{Â}, #$00C4{Ä}, #$00C6{Æ}, #$00C7{Ç}, #$00C8{È}, #$00C9{É},
     {88} #$00CA{Ê}, #$00CB{Ë}, #$00CC{Ì}, #$00CD{Í}, #$00CE{Î}, #$00CF{Ï}, #$00D2{Ò}, #$00D3{Ó},
@@ -643,6 +647,7 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
     KanjiIdx: TBytes;
     NeedAnsi: boolean;
     amsg: Tbytes;
+    w: word;
   begin
     fs.Position := 0;
 
@@ -746,24 +751,36 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
 
       NeedAnsi := IsBob or StartsText('netui', string(result.Messages[i].key)); // do not localize
 
-      if NeedAnsi then
+      if NeedAnsi and (filHead.Lang <> LANG_J) then
       begin
+        SetLength(amsg, 0);
+        for j := 1 to Length(result.Messages[i].msg) do
+        begin
+          w := Ord(result.Messages[i].msg[j]);
+          if w <= $00FF then
+          begin
+            SetLength(amsg, Length(amsg)+1);
+            amsg[High(amsg)] := Byte(w);
+          end
+          else
+          begin
+            SetLength(amsg, Length(amsg)+2);
+            amsg[High(amsg)-1] := Byte((w shr 8) and $FF);
+            amsg[High(amsg)]   := Byte(w and $FF);
+          end;
+        end;
         {$IFDEF FPC}
         if filHead.lang = LANG_R then
           result.Messages[i].msg := ConvertWithIconv(RawByteStringToBytes(UTF8Encode(result.Messages[i].msg)), CP_UTF8, CP_RUS)
-        else if filHead.lang = LANG_J then
-          result.Messages[i].msg := ConvertWithIconv(RawByteStringToBytes(UTF8Encode(result.Messages[i].msg)), CP_UTF8, CP_SJIS)
+        //else if filHead.lang = LANG_J then
+        //  result.Messages[i].msg := ConvertWithIconv(RawByteStringToBytes(UTF8Encode(result.Messages[i].msg)), CP_UTF8, CP_SJIS)
         else
           result.Messages[i].msg := ConvertWithIconv(RawByteStringToBytes(UTF8Encode(result.Messages[i].msg)), CP_UTF8, CP_EURO);
         {$ELSE}
-        SetLength(amsg, Length(result.Messages[i].msg));
-        for j := 1 to Length(result.Messages[i].msg) do
-          amsg[j-1] := Byte(result.Messages[i].msg[j]);
         if filHead.lang = LANG_R then
           result.Messages[i].msg := TEncoding.GetEncoding(CP_RUS).GetString(amsg)
-        else if filHead.lang = LANG_J then
-          // TODO: hier kommt komisches zeug raus !!!
-          result.Messages[i].msg := TEncoding.GetEncoding(CP_SJIS).GetString(amsg)
+        //else if filHead.lang = LANG_J then
+        //  result.Messages[i].msg := TEncoding.GetEncoding(CP_SJIS).GetString(amsg)
         else
           result.Messages[i].msg := TEncoding.GetEncoding(CP_EURO).GetString(amsg);
         {$ENDIF}
@@ -776,7 +793,7 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
           // BUG IN J.GXT: SJIS 0x8140 : IDEOGRAPHIC SP (U+3000), not in Kanji.dat
           for j := 1 to Length(result.Messages[i].msg) do
             if Word(result.Messages[i].msg[j]) = $8140 then
-              if not IsKanjiValid(KanjiIdx, Word(result.Messages[i].msg[j])) then
+              if not NeedAnsi and not IsKanjiValid(KanjiIdx, Word(result.Messages[i].msg[j])) then
                 result.Messages[i].msg[j] := ' '; // silently replace it with a regular whitespace
 
           // Convert JSIS-16 to UTF-16
@@ -932,7 +949,7 @@ var
 
         NeedAnsi := IsBob or StartsText('netui', string(Messages[i].key)); // do not localize
 
-        if NeedAnsi then
+        if NeedAnsi and (Language <> LANG_J) then
         begin
           {$IFDEF FPC}
           if Language = LANG_R then
@@ -962,7 +979,7 @@ var
             for j := Low(msg) to High(msg) do
             begin
               Sjis := Word(msg[j]);
-              if not (Sjis in [{ $0A, $0D, }$20]) and not IsKanjiValid(KanjiIdx, Sjis) then
+              if not (Sjis in [{ $0A, $0D, }$20]) and not NeedAnsi and not IsKanjiValid(KanjiIdx, Sjis) then
               begin
                 // BUG IN J.GXT: SJIS 0x8140 : IDEOGRAPHIC SPACE (U+3000), not in Kanji.dat
                 if Sjis = $8140 then

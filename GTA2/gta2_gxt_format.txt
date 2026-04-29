@@ -111,6 +111,7 @@ Section type: TDAT (contains texts)
 		Each 16 bit character in the GXT file is either:
 		- An UTF-16 encoded ASCII character
 		- A Shift-JIS encoded character
+		- Single-byte characters are stored as xx00, while double-byte Shift-JIS characters are stored in a 16-bit code unit with swapped byte order.
 
 		The rendering is done in the *.sty files, in addition with 16x16 glyphs implemented in Kanji.dat
 
@@ -118,8 +119,8 @@ Section type: TDAT (contains texts)
 
 	The "intended" codepages are:
 	- For European (E, F, G, I, S) = Codepage 1252
-	- For Russian  (R)             = Codepage 1251 (TODO: Verify. The README file is encoded in Windows-1251.)
-	- For Japanese (J)             = Codepage ???? (TODO)
+	- For Russian  (R)             = Codepage 1251
+	- For Japanese (J)             = Shift-JIS, in the same way as the game file, so there is no difference between bob_j.gxt and j.gxt
 
 	If the player's computer has the wrong codepage, the game manager will show garbage.
 
