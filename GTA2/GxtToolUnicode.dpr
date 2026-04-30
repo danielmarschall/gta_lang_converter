@@ -172,6 +172,7 @@ begin
   Result := TEncoding.GetEncoding(CodePage);
 end;
 
+{$IFDEF FPC}
 function BytesToRawString(const B: TBytes): RawByteString;
 begin
   if Length(B) > 0 then
@@ -198,7 +199,6 @@ begin
     Move(Bytes[0], Result[1], Len * SizeOf(WideChar));
 end;
 
-{$IFDEF FPC}
 type
   iconv_t = Pointer;
 
@@ -838,9 +838,9 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
           result.Messages[i].msg := UTF8Decode(RawByteString(ConvertWithIconv(amsg, MakeEncoding(CP_EURO), MakeEncoding(CP_UTF8))));
         {$ELSE}
         if filHead.lang = LANG_R then
-          result.Messages[i].msg := TEncoding.GetEncoding(CP_RUS).GetString(amsg)
+          result.Messages[i].msg := MakeEncoding(CP_RUS).GetString(amsg)
         else
-          result.Messages[i].msg := TEncoding.GetEncoding(CP_EURO).GetString(amsg);
+          result.Messages[i].msg := MakeEncoding(CP_EURO).GetString(amsg);
         {$ENDIF}
       end
       else if filHead.lang = LANG_J then
@@ -914,19 +914,18 @@ var
     w: Word;
     enc: TEncoding;
   begin
+    Result := '';
+    enc := MakeEncoding(Codepage);
+
     {$IFNDEF FPC}
     if CodePage <> CP_SJIS then
     begin
-      b := TEncoding.GetEncoding(CodePage).GetBytes(s);
-      result := '';
+      b := enc.GetBytes(s);
       for i := 0 to Length(b)-1 do
         result := result + WideChar(b[i]);
       exit;
     end;
     {$ENDIF}
-
-    Result := '';
-    enc := MakeEncoding(Codepage);
 
     try
       for i := 1 to Length(s) do
@@ -1189,59 +1188,14 @@ var
     result := true;
   end;
 
-  // TODO: weg damit?!
-  function IsValidUTF8(const B: TBytes): Boolean;
-  var
-    i, remaining: Integer;
-    c: Byte;
-  begin
-    i := 0;
-    while i < Length(B) do
-    begin
-      c := B[i];
-
-      if c <= $7F then
-      begin
-        Inc(i);
-        Continue;
-      end
-      else if (c and $E0) = $C0 then
-        remaining := 1
-      else if (c and $F0) = $E0 then
-        remaining := 2
-      else if (c and $F8) = $F0 then
-        remaining := 3
-      else
-        Exit(False);
-
-      Inc(i);
-
-      while remaining > 0 do
-      begin
-        if i >= Length(B) then
-          Exit(False);
-
-        c := B[i];
-        if (c and $C0) <> $80 then
-          Exit(False);
-
-        Inc(i);
-        Dec(remaining);
-      end;
-    end;
-
-    Result := True;
-  end;
-
 {$IFDEF FPC}
   function DecodeFPC(const B: TBytes; Info: TFileEncInfo): WideString;
   begin
-    if Info.IsUtf8 and IsValidUTF8(B) then
-      Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, Info.Encoding, MakeEncoding(CP_UTF8))))
-    else if Info.IsJapanese then
-      Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, MakeEncoding(CP_SJIS), MakeEncoding(CP_UTF8))))
-    //else if Assigned(info.Encoding) then
+    //if Assigned(info.Encoding) then
     //  Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, info.Encoding, MakeEncoding(CP_UTF8))))
+    // else
+    if Info.IsJapanese then
+      Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, MakeEncoding(CP_SJIS), MakeEncoding(CP_UTF8))))
     else if Language = LANG_R then
       Result := UTF8Decode(BytesToRawString(ConvertWithIconv(B, MakeEncoding(CP_RUS), MakeEncoding(CP_UTF8))))
     else
@@ -1259,20 +1213,11 @@ var
     P := 0;
     Len := Length(B);
 
-    // Skip UTF8 BOM
-    if info.IsUtf8 and (Len >= 3) and
-       (B[0] = $EF) and (B[1] = $BB) and (B[2] = $BF) then
-    begin
-      P := 3;
-      Dec(Len, 3);
-    end;
-
-    if info.IsUtf8 and IsValidUTF8(B) then
-      Result := TEncoding.UTF8.GetString(B, P, Len)
-    else if info.IsJapanese then
-      Result := MakeEncoding(CP_SJIS).GetString(B, P, Len)
-    //else if Assigned(info.Encoding) then
+    //if Assigned(info.Encoding) then
     //  Result := info.Encoding.GetString(B, P, Len)
+    //else
+    if info.IsJapanese then
+      Result := MakeEncoding(CP_SJIS).GetString(B, P, Len)
     else if Language = LANG_R then
       Result := MakeEncoding(CP_RUS).GetString(B, P, Len)
     else
