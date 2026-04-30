@@ -48,6 +48,11 @@ resourcestring
   S_USAGE = 'Usage:';
   S_IllegalKanji = 'Warning: Illegal character not in Kanji.idx: %s';
   S_IllegalEuropeanChar = 'Warning: Illegal European character: %s';
+  SFileNotFound = 'File not found: %s';
+  SInvalidKanjiFileSize = 'Invalid Kanji Index size: %s';
+  SIconvUnsupportedEncoding = 'Unsupported encoding: %d';
+  SIconvOpenFailed = 'iconv_open failed';
+  SIconvFailed = 'iconv %s => %s failed. File has probably invalid characters.';
 
 // --- Encoding Stuff
 
@@ -73,10 +78,10 @@ function ConvertWithIconv(const Data: TBytes; SourceEncoding, TargetEncoding: TE
 
   function EncodingToIconvName(Enc: TEncoding): string;
   begin
-    if Enc.CodePage = CP_UTF8 then Exit('UTF-8');
-    if Enc.CodePage = CP_SJIS then Exit('CP932');
-    if Enc.CodePage = CP_EURO then Exit('CP1252');
-    raise Exception.Create('Unsupported encoding: ' + IntToStr(Enc.CodePage));
+    if Enc.CodePage = CP_UTF8 then Exit('UTF-8'); // do not localize
+    if Enc.CodePage = CP_SJIS then Exit('CP932'); // do not localize
+    if Enc.CodePage = CP_EURO then Exit('CP1252'); // do not localize
+    raise Exception.CreateFmt(SIconvUnsupportedEncoding, [Enc.CodePage]);
   end;
 
 var
@@ -94,7 +99,7 @@ begin
 
   cd := iconv_open(PChar(ToEnc), PChar(FromEnc));
   if cd = iconv_t(-1) then
-    raise Exception.Create('iconv_open failed');
+    raise Exception.Create(SIconvOpenFailed);
 
   try
     InBytesLeft := Length(Data);
@@ -112,7 +117,7 @@ begin
     while InBytesLeft > 0 do
     begin
       if iconv(cd, @InBuf, @InBytesLeft, @OutBuf, @OutBytesLeft) = SizeUInt(-1) then
-        raise Exception.Create('iconv failed. File has probably invalid characters.');
+        raise Exception.CreateFmt(SIconvFailed, [FromEnc, ToEnc]);
     end;
 
     SetLength(Result, OutSize - OutBytesLeft);
@@ -131,7 +136,7 @@ var
 begin
   Result := nil; // SetLength(Result, 0);
   if not FileExists(FileName) then
-    raise Exception.CreateFmt('File not found: %s', [FileName]);
+    raise Exception.CreateFmt(SFileNotFound, [FileName]);
 
   FS := TFileStream.Create(FileName, fmOpenRead or fmShareDenyWrite);
   try
@@ -404,7 +409,7 @@ begin
   FileName := ExtractFilePath(ParamStr(0)) + 'KANJI.IDX'; // do not localize
   Result := ReadAllBytesFromFile(FileName);
   if (Length(Result) > 0) and ((Length(Result) mod 2) <> 0) then
-    raise Exception.CreateFmt('Invalid Kanji Index size: %s', [FileName]);
+    raise Exception.CreateFmt(SInvalidKanjiFileSize, [FileName]);
 {$ELSE}
 var
   ResStream: TResourceStream;
@@ -989,12 +994,12 @@ end;
 procedure ProcessFile(const InFile: string; var RequirePause: boolean);
 begin
   try
-         if ExtractFileExt(InFile)         = '.fxt'  then FxtToTxt(InFile, ChangeFileExt(InFile, '.txt'))
-    else if ExtractFileExt(InFile)         = '.FXT'  then FxtToTxt(InFile, ChangeFileExt(InFile, '.TXT'))
-    else if SameText(ExtractFileExt(InFile), '.fxt') then FxtToTxt(InFile, ChangeFileExt(InFile, '.txt'))
-    else if ExtractFileExt(InFile)         = '.txt'  then TxtToFxt(InFile, ChangeFileExt(InFile, '.fxt'))
-    else if ExtractFileExt(InFile)         = '.TXT'  then TxtToFxt(InFile, ChangeFileExt(InFile, '.FXT'))
-    else if SameText(ExtractFileExt(InFile), '.txt') then TxtToFxt(InFile, ChangeFileExt(InFile, '.fxt'))
+         if ExtractFileExt(InFile)         = '.fxt'  then FxtToTxt(InFile, ChangeFileExt(InFile, '.txt')) // do not localize
+    else if ExtractFileExt(InFile)         = '.FXT'  then FxtToTxt(InFile, ChangeFileExt(InFile, '.TXT')) // do not localize
+    else if SameText(ExtractFileExt(InFile), '.fxt') then FxtToTxt(InFile, ChangeFileExt(InFile, '.txt')) // do not localize
+    else if ExtractFileExt(InFile)         = '.txt'  then TxtToFxt(InFile, ChangeFileExt(InFile, '.fxt')) // do not localize
+    else if ExtractFileExt(InFile)         = '.TXT'  then TxtToFxt(InFile, ChangeFileExt(InFile, '.FXT')) // do not localize
+    else if SameText(ExtractFileExt(InFile), '.txt') then TxtToFxt(InFile, ChangeFileExt(InFile, '.fxt')) // do not localize
     else
     begin
       if FileExists(InFile) then
@@ -1053,7 +1058,7 @@ begin
     RequirePause := false;
     for i := 1 to ParamCount do
     begin
-      if ParamStr(i) = 'TEST' then
+      if ParamStr(i) = 'TEST' then // do not localize
       begin
         try
           Testcases
@@ -1086,7 +1091,7 @@ begin
   end;
 
   InFile := ParamStr(1);
-  if InFile = 'TEST' then
+  if InFile = 'TEST' then // do not localize
   begin
     Testcases;
     Exit;
@@ -1096,18 +1101,18 @@ begin
   else
   begin
     Ext := LowerCase(ExtractFileExt(InFile));
-    if Ext = '.fxt' then
-      OutFile := ChangeFileExt(InFile, '.txt')
-    else if Ext = '.txt' then
-      OutFile := ChangeFileExt(InFile, '.fxt')
+    if Ext = '.fxt' then // do not localize
+      OutFile := ChangeFileExt(InFile, '.txt') // do not localize
+    else if Ext = '.txt' then // do not localize
+      OutFile := ChangeFileExt(InFile, '.fxt') // do not localize
     else
       raise Exception.Create(S_INVALID_FILE);
   end;
 
   Ext := LowerCase(ExtractFileExt(InFile));
-  if Ext = '.fxt' then
+  if Ext = '.fxt' then // do not localize
     FxtToTxt(InFile, OutFile)
-  else if Ext = '.txt' then
+  else if Ext = '.txt' then // do not localize
     TxtToFxt(InFile, OutFile)
   else
     raise Exception.Create(S_INVALID_FILE);

@@ -60,6 +60,9 @@ resourcestring
   SLanguageMustBe_S = 'ERROR: Language must be "%s".';
   SWrongFileVersion = 'ERROR: %s version doesn''t have the value %d.';
   SFileNotFound = 'File not found: %s';
+  SIconvUnsupportedEncoding = 'Unsupported encoding: %d';
+  SIconvOpenFailed = 'iconv_open failed';
+  SIconvFailed = 'iconv %s => %s failed. File has probably invalid characters.';
 
 // --- GTA2 Specific
 
@@ -213,11 +216,11 @@ function ConvertWithIconv(const Data: TBytes; SourceEncoding, TargetEncoding: TE
 
   function EncodingToIconvName(Enc: TEncoding): string;
   begin
-    if Enc.CodePage = CP_UTF8 then Exit('UTF-8');
-    if Enc.CodePage = CP_SJIS then Exit('CP932');
-    if Enc.CodePage = CP_RUS  then Exit('CP1251');
-    if Enc.CodePage = CP_EURO then Exit('CP1252');
-    raise Exception.Create('Unsupported encoding: ' + IntToStr(Enc.CodePage));
+    if Enc.CodePage = CP_UTF8 then Exit('UTF-8'); // do not localize
+    if Enc.CodePage = CP_SJIS then Exit('CP932'); // do not localize
+    if Enc.CodePage = CP_RUS  then Exit('CP1251'); // do not localize
+    if Enc.CodePage = CP_EURO then Exit('CP1252'); // do not localize
+    raise Exception.CreateFmt(SIconvUnsupportedEncoding, [Enc.CodePage]);
   end;
 
 var
@@ -235,7 +238,7 @@ begin
 
   cd := iconv_open(PChar(ToEnc), PChar(FromEnc));
   if cd = iconv_t(-1) then
-    raise Exception.Create('iconv_open failed');
+    raise Exception.Create(SIconvOpenFailed);
 
   try
     InBytesLeft := Length(Data);
@@ -253,7 +256,7 @@ begin
     while InBytesLeft > 0 do
     begin
       if iconv(cd, @InBuf, @InBytesLeft, @OutBuf, @OutBytesLeft) = SizeUInt(-1) then
-        raise Exception.CreateFmt('iconv %s => %s failed. File has probably invalid characters.', [FromEnc, ToEnc]);
+        raise Exception.CreateFmt(SIconvFailed, [FromEnc, ToEnc]);
     end;
 
     SetLength(Result, OutSize - OutBytesLeft);
@@ -1083,13 +1086,10 @@ var
 
         SystemAnsiTarget := IsBob or StartsText('netui', string(Messages[i].key)); // do not localize
 
-        if SystemAnsiTarget and (Language <> LANG_J) then
-        begin
-          if Language = LANG_R then
-            msg := WideStringToCodePage16(messages[i].msg, CP_RUS)
-          else
-            msg := WideStringToCodePage16(messages[i].msg, CP_EURO);
-        end
+        if SystemAnsiTarget and (Language = LANG_R) then
+          msg := WideStringToCodePage16(messages[i].msg, CP_RUS)
+        else if SystemAnsiTarget and (Language <> LANG_J) then
+          msg := WideStringToCodePage16(messages[i].msg, CP_EURO)
         else if Language = LANG_J then
         begin
           msg := WideStringToCodePage16(messages[i].msg, CP_SJIS);
@@ -1102,7 +1102,7 @@ var
               if not gNoAutoFixes and (Sjis = $8140) then
                 msg[j] := ' ' // silently fix it by replacing it with a normal space
               else
-                WriteLn(Format(S_IllegalKanji, ['0x' + IntToHex(Sjis, 4)]));
+                WriteLn(Format(S_IllegalKanji, ['0x' + IntToHex(Sjis, 4)])); // do not localize
             end;
           end;
         end
@@ -1540,14 +1540,14 @@ var
   IsBob: Boolean;
 begin
   try
-    IsBob := StartsText('bob_', ExtractFileName(InFile)) or FileContainsString(InFile, 'domovie');
+    IsBob := StartsText('bob_', ExtractFileName(InFile)) or FileContainsString(InFile, 'domovie'); // do not localize
     Lang := GuessOrAskForLanguage(InFile);
-         if ExtractFileExt(InFile)         = '.gxt'  then GxtToTxt(InFile, ChangeFileExt(InFile, '.txt'), IsBob)
-    else if ExtractFileExt(InFile)         = '.GXT'  then GxtToTxt(InFile, ChangeFileExt(InFile, '.TXT'), IsBob)
-    else if SameText(ExtractFileExt(InFile), '.gxt') then GxtToTxt(InFile, ChangeFileExt(InFile, '.txt'), IsBob)
-    else if ExtractFileExt(InFile)         = '.txt'  then TxtToGxt(InFile, ChangeFileExt(InFile, '.gxt'), Lang, IsBob)
-    else if ExtractFileExt(InFile)         = '.TXT'  then TxtToGxt(InFile, ChangeFileExt(InFile, '.GXT'), Lang, IsBob)
-    else if SameText(ExtractFileExt(InFile), '.txt') then TxtToGxt(InFile, ChangeFileExt(InFile, '.gxt'), Lang, IsBob)
+         if ExtractFileExt(InFile)         = '.gxt'  then GxtToTxt(InFile, ChangeFileExt(InFile, '.txt'), IsBob) // do not localize
+    else if ExtractFileExt(InFile)         = '.GXT'  then GxtToTxt(InFile, ChangeFileExt(InFile, '.TXT'), IsBob) // do not localize
+    else if SameText(ExtractFileExt(InFile), '.gxt') then GxtToTxt(InFile, ChangeFileExt(InFile, '.txt'), IsBob) // do not localize
+    else if ExtractFileExt(InFile)         = '.txt'  then TxtToGxt(InFile, ChangeFileExt(InFile, '.gxt'), Lang, IsBob) // do not localize
+    else if ExtractFileExt(InFile)         = '.TXT'  then TxtToGxt(InFile, ChangeFileExt(InFile, '.GXT'), Lang, IsBob) // do not localize
+    else if SameText(ExtractFileExt(InFile), '.txt') then TxtToGxt(InFile, ChangeFileExt(InFile, '.gxt'), Lang, IsBob) // do not localize
     else
     begin
       if FileExists(InFile) then
@@ -1607,11 +1607,11 @@ begin
     RequirePause := false;
     for i := 1 to ParamCount do
     begin
-      if ParamStr(i) = 'NO_AUTO_FIXES' then
+      if ParamStr(i) = 'NO_AUTO_FIXES' then // do not localize
       begin
         gNoAutoFixes := true;
       end
-      else if ParamStr(i) = 'TEST' then
+      else if ParamStr(i) = 'TEST' then // do not localize
       begin
         try
           Testcases;
@@ -1646,7 +1646,7 @@ begin
   end;
 
   InFile := ParamStr(1);
-  if InFile = 'TEST' then
+  if InFile = 'TEST' then // do not localize
   begin
     Testcases;
     Exit;
@@ -1657,27 +1657,27 @@ begin
   else
   begin
     Ext := LowerCase(ExtractFileExt(InFile));
-    if Ext = '.gxt' then
-      OutFile := ChangeFileExt(InFile, '.txt')
-    else if Ext = '.txt' then
-      OutFile := ChangeFileExt(InFile, '.gxt')
+    if Ext = '.gxt' then // do not localize
+      OutFile := ChangeFileExt(InFile, '.txt') // do not localize
+    else if Ext = '.txt' then // do not localize
+      OutFile := ChangeFileExt(InFile, '.gxt') // do not localize
     else
       raise Exception.Create(S_INVALID_FILE);
   end;
 
-  IsBob := StartsText('bob_', ExtractFileName(InFile)) or FileContainsString(InFile, 'domovie');
+  IsBob := StartsText('bob_', ExtractFileName(InFile)) or FileContainsString(InFile, 'domovie'); // do not localize
   Ext := LowerCase(ExtractFileExt(InFile));
-  if Ext = '.gxt' then
+  if Ext = '.gxt' then // do not localize
   begin
     GxtToTxt(InFile, OutFile, IsBob)
   end
-  else if Ext = '.txt' then
+  else if Ext = '.txt' then // do not localize
   begin
     if ParamCount >= 3 then
       Lang := ParamStr(3)[1]
     else
       Lang := GuessOrAskForLanguage(InFile);
-    gNoAutoFixes := (ParamCount >= 4) and (ParamStr(4) = 'NO_AUTO_FIXES');
+    gNoAutoFixes := (ParamCount >= 4) and (ParamStr(4) = 'NO_AUTO_FIXES'); // do not localize
     TxtToGxt(InFile, OutFile, Lang, IsBob);
   end
   else
