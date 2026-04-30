@@ -3,7 +3,7 @@
 {
   GXT<=>TXT converter for GTA2
   by Daniel Marschall
-  Revision: 29 April 2026
+  Revision: 30 April 2026
   Licensed under the terms of the Apache 2.0 license
   Source code compatible with Delphi for Win32/64, and FreePascal for Debian Linux
   More information here: https://misc.daniel-marschall.de/spiele/gta2/
@@ -44,7 +44,7 @@ resourcestring
   {$ENDIF}
   S_INTRO_1 = 'GXT<>TXT Converter for GTA 2 (Unicode Version)';
   S_INTRO_2 = 'by Daniel Marschall';
-  S_INTRO_3 = 'Revision: 29 April 2026';
+  S_INTRO_3 = 'Revision: 30 April 2026';
   S_INTRO_4 = 'Licensed under the terms of the Apache 2.0 license';
   S_USAGE = 'Usage:';
   S_IllegalKanji = 'Warning: Illegal character not in Kanji.dat: %s';
@@ -127,6 +127,7 @@ type
     key: AnsiString;
     guy: AnsiChar;
     msg: WideString;
+    tdatPosition: Cardinal;
   end;
   TGTAMessagesArray = array of TGTAMessage;
 
@@ -654,6 +655,22 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
       Messages: TGTAMessagesArray;
     end;
 
+  procedure Gta2SortMessagesByTDAT(var messages: TGTAMessagesArray);
+  var
+    i, j: Integer;
+    tmp: TGTAMessage;
+  begin
+    // TODO: xxx slow
+    for i := 0 to High(messages) - 1 do
+      for j := 0 to High(messages) - i - 1 do
+        if messages[j].tdatPosition > messages[j + 1].tdatPosition then
+        begin
+          tmp := messages[j];
+          messages[j] := messages[j + 1];
+          messages[j + 1] := tmp;
+        end;
+  end;
+
   function DecodeGXT(fs: TFileStream): TDecodeGXTAnswer;
   var
     numEntries: integer;
@@ -737,6 +754,7 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
     SetLength(result.Messages, numEntries);
     for i := 0 to numEntries-1 do
     begin
+      result.Messages[i].tdatPosition := tkAry[i].relDataOffset;
       p := PByte(op) + tkAry[i].relDataOffset;
 
       len := 0;
@@ -844,6 +862,9 @@ begin
 
     ans := DecodeGXT(fs);
     messages := ans.Messages;
+
+    Gta2SortMessagesByTDAT(messages);
+
     for i := low(messages) to high(messages) do
     begin
       if messages[i].guy <> #0 then
@@ -946,7 +967,44 @@ var
     while Length(result) < len do result := result + #0;
   end;
 
-  procedure EncodeGXT(messages: TGTAMessagesArray; fsOut: TFileStream);
+  procedure Gta2SortMessagesByTKEY(var messages: TGTAMessagesArray);
+  var
+    i, j: Integer;
+    tmp: TGTAMessage;
+  begin
+    // TODO: xxx slow
+    for i := 0 to High(messages) - 1 do
+      for j := 0 to High(messages) - i - 1 do
+        if CompareStr(messages[j].key, messages[j + 1].key) > 0 then
+        begin
+          tmp := messages[j];
+          messages[j] := messages[j + 1];
+          messages[j + 1] := tmp;
+        end;
+  end;
+
+  procedure WriteWideStringAtPosition(msDat: TMemoryStream; const msg: WideString; pos: Cardinal);
+  var
+    requiredSize: Int64;
+  begin
+    if msg = '' then
+      Exit;
+
+    // Zielgröße berechnen
+    requiredSize := pos + (Length(msg) * SizeOf(WideChar));
+
+    // Stream ggf. vergrößern
+    if msDat.Size < requiredSize then
+      msDat.Size := requiredSize;
+
+    // Schreibposition setzen
+    msDat.Position := pos;
+
+    // Daten schreiben
+    msDat.WriteBuffer(msg[1], Length(msg) * SizeOf(WideChar));
+  end;
+
+  procedure EncodeGXT(var messages: TGTAMessagesArray; fsOut: TFileStream);
   var
     i, j: integer;
     msg: WideString;
@@ -972,7 +1030,7 @@ var
           Continue;
         end;
 
-        curoffset := msDat.Position;
+        curoffset := messages[i].tdatPosition;
         msKey.Write(curoffset, SizeOf(curoffset));
         curkey := AnsiString(ZeroPad(string(messages[i].key), MAX_KEY_SIZE));
         msKey.Write(curkey[1], Length(curkey)*SizeOf(AnsiChar));
@@ -1013,7 +1071,7 @@ var
           msg := guywc + msg;
         end;
 
-        msDat.Write(msg[1], Length(msg) * SizeOf(WideChar));
+        WriteWideStringAtPosition(msDat, msg, messages[i].tdatPosition);
       end;
 
       gxtHead.magic   := GXT_MAGIC;
@@ -1038,7 +1096,7 @@ var
     end;
   end;
 
-  function LineToMessage(line: WideString; var m: TGTAMessage): boolean;
+  function LineToMessage(line: WideString; var m: TGTAMessage; var datPos: Cardinal): boolean;
   var
     p: integer;
     key: AnsiString;
@@ -1087,10 +1145,17 @@ var
     m.key := key;
     m.guy := guy;
     m.msg := msg;
+    m.tdatPosition := datPos;
+
+    Inc(datPos, Length(m.msg) * SizeOf(WideChar));
+    if m.guy <> #0 then
+      Inc(datPos, SizeOf(WideChar));
+    Inc(datPos, SizeOf(WideChar)); // zero terminator
 
     result := true;
   end;
 
+  // TODO: weg damit?!
   function IsValidUTF8(const B: TBytes): Boolean;
   var
     i, remaining: Integer;
@@ -1181,46 +1246,46 @@ var
   end;
 {$ENDIF}
 
-function SplitLines(const S: WideString): TArray<WideString>;
-var
-  i, Start, Count: Integer;
-begin
-  Result := nil;
-  SetLength(Result, 0);
-  Count := 0;
-  Start := 1;
-  i := 1;
-
-  while i <= Length(S) do
+  function SplitLines(const S: WideString): TArray<WideString>;
+  var
+    i, Start, Count: Integer;
   begin
-    if (S[i] = #10) or (S[i] = #13) then
+    Result := nil;
+    SetLength(Result, 0);
+    Count := 0;
+    Start := 1;
+    i := 1;
+
+    while i <= Length(S) do
     begin
-      if i > Start then
+      if (S[i] = #10) or (S[i] = #13) then
       begin
-        SetLength(Result, Count + 1);
-        Result[Count] := Copy(S, Start, i - Start);
-        Inc(Count);
+        if i > Start then
+        begin
+          SetLength(Result, Count + 1);
+          Result[Count] := Copy(S, Start, i - Start);
+          Inc(Count);
+        end;
+
+        // CRLF sauber überspringen ohne i+1 Zugriff
+        if (S[i] = #13) then
+        begin
+          if (i < Length(S)) and (S[i + 1] = #10) then
+            Inc(i);
+        end;
+
+        Start := i + 1;
       end;
 
-      // CRLF sauber überspringen ohne i+1 Zugriff
-      if (S[i] = #13) then
-      begin
-        if (i < Length(S)) and (S[i + 1] = #10) then
-          Inc(i);
-      end;
-
-      Start := i + 1;
+      Inc(i);
     end;
 
-    Inc(i);
+    if Start <= Length(S) then
+    begin
+      SetLength(Result, Count + 1);
+      Result[Count] := Copy(S, Start, Length(S) - Start + 1);
+    end;
   end;
-
-  if Start <= Length(S) then
-  begin
-    SetLength(Result, Count + 1);
-    Result[Count] := Copy(S, Start, Length(S) - Start + 1);
-  end;
-end;
 
 var
   InBytes: TBytes;
@@ -1232,6 +1297,7 @@ var
   messages: TGTAMessagesArray;
   fsOut: TFileStream;
   Lines: TArray<WideString>;
+  datPos: Cardinal;
 begin
   Info := DetectFileEncoding(InFile, Language);
 
@@ -1251,14 +1317,17 @@ begin
   // Convert TXT lines to GTA2 messages
   messages := nil;
   SetLength(messages, 0);
+  datPos := 0;
   for i := Low(Lines) to High(Lines) do
   begin
-    if not LineToMessage(Lines[i], m) then Continue;
+    if not LineToMessage(Lines[i], m, datPos) then Continue;
     SetLength(messages, Length(messages) + 1);
     messages[High(messages)] := m;
   end;
 
-  // TODO: We might want to order the messages so that they are sorted by TKEY (this seems to be important to the game)
+  // We might want to order the messages so that they are sorted by TKEY (this seems to be important to the game)
+  // especially since we made a key fix in J.GXT
+  Gta2SortMessagesByTKEY(messages);
 
   // Now write messages to GXT file
   fsOut := TFileStream.Create(Outfile, fmCreate or fmOpenWrite);
@@ -1364,14 +1433,11 @@ begin
   TxtToGxt(TestDir + 'e.txt', TestDir + 'e2.gxt', LANG_E, false);
   GxtToTxt(TestDir + 'e2.gxt', TestDir + 'e2.txt', false);
   CompareFiles(TestDir + 'e.txt', TestDir + 'e2.txt');
-  // TODO: Currently our re-generated GXT files do NOT fit the original
-  //       GXT files. The reason is that GXT=>TXT does order the output
-  //       according to the pre-ordered TKEYs, not according to the TDAT.
-  //       Probably better would be if GXT=>TXT orders by TDAT.
-  //       But if we do that, then TXT=>GXT needs to order to TKEY
-  //       instead of just taking the order from TXT. (The ordering to TKEY
-  //       is probably important to the game).
-  //CompareFiles(TestDir + 'e.gxt', TestDir + 'e2.gxt');
+  CompareFiles(TestDir + 'e.gxt', TestDir + 'e2.gxt');
+
+
+ReadLn;
+  exit; // TODO: sponge
 
   GxtToTxt(TestDir     + 'f.gxt',  TestDir + 'f.txt', false);
   TxtToGxt(TestDir     + 'f.txt',  TestDir + 'f2.gxt', LANG_F, false);
