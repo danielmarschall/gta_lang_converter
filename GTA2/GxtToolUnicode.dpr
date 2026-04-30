@@ -127,7 +127,7 @@ type
     key: AnsiString;
     guy: AnsiChar;
     msg: WideString;
-    tdatPosition: Cardinal;
+    tdatPosition: Int64;
   end;
   TGTAMessagesArray = array of TGTAMessage;
 
@@ -655,20 +655,37 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
       Messages: TGTAMessagesArray;
     end;
 
-  procedure Gta2SortMessagesByTDAT(var messages: TGTAMessagesArray);
+  procedure QuickSortTDAT(var A: TGTAMessagesArray; L, R: Integer);
   var
-    i, j: Integer;
-    tmp: TGTAMessage;
+    I, J: Integer;
+    Pivot, Temp: TGTAMessage;
   begin
-    // TODO: xxx slow
-    for i := 0 to High(messages) - 1 do
-      for j := 0 to High(messages) - i - 1 do
-        if messages[j].tdatPosition > messages[j + 1].tdatPosition then
-        begin
-          tmp := messages[j];
-          messages[j] := messages[j + 1];
-          messages[j + 1] := tmp;
-        end;
+    I := L;
+    J := R;
+    Pivot := A[(L + R) div 2];
+
+    repeat
+      while A[I].tdatPosition < Pivot.tdatPosition do Inc(I);
+      while A[J].tdatPosition > Pivot.tdatPosition do Dec(J);
+
+      if I <= J then
+      begin
+        Temp := A[I];
+        A[I] := A[J];
+        A[J] := Temp;
+        Inc(I);
+        Dec(J);
+      end;
+    until I > J;
+
+    if L < J then QuickSortTDAT(A, L, J);
+    if I < R then QuickSortTDAT(A, I, R);
+  end;
+
+  procedure Gta2SortMessagesByTDAT(var messages: TGTAMessagesArray);
+  begin
+    if Length(messages) > 1 then
+      QuickSortTDAT(messages, 0, High(messages));
   end;
 
   function DecodeGXT(fs: TFileStream): TDecodeGXTAnswer;
@@ -687,7 +704,7 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
     len: integer;
     s: String;
     KanjiIdx: TBytes;
-    NeedAnsi: boolean;
+    SystemAnsiTarget: boolean;
     amsg: Tbytes;
     w: word;
   begin
@@ -792,9 +809,9 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
 
       result.Messages[i].key := AnsiString(s);
 
-      NeedAnsi := IsBob or StartsText('netui', string(result.Messages[i].key)); // do not localize
+      SystemAnsiTarget := IsBob or StartsText('netui', string(result.Messages[i].key)); // do not localize
 
-      if NeedAnsi and (filHead.Lang <> LANG_J) then
+      if SystemAnsiTarget and (filHead.Lang <> LANG_J) then
       begin
         SetLength(amsg, 0);
         for j := 1 to Length(result.Messages[i].msg) do
@@ -832,7 +849,7 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
         // BUG IN J.GXT: SJIS 0x8140 : IDEOGRAPHIC SP (U+3000), not in Kanji.dat
         for j := 1 to Length(result.Messages[i].msg) do
           if Word(result.Messages[i].msg[j]) = $8140 then
-            if not NeedAnsi and not IsKanjiValid(KanjiIdx, Word(result.Messages[i].msg[j])) then
+            if not SystemAnsiTarget and not IsKanjiValid(KanjiIdx, Word(result.Messages[i].msg[j])) then
               result.Messages[i].msg[j] := ' '; // silently replace it with a regular whitespace
 
         // Convert JSIS-16 to UTF-16
@@ -967,23 +984,40 @@ var
     while Length(result) < len do result := result + #0;
   end;
 
-  procedure Gta2SortMessagesByTKEY(var messages: TGTAMessagesArray);
+  procedure QuickSortTKEY(var A: TGTAMessagesArray; L, R: Integer);
   var
-    i, j: Integer;
-    tmp: TGTAMessage;
+    I, J: Integer;
+    Pivot, Temp: TGTAMessage;
   begin
-    // TODO: xxx slow
-    for i := 0 to High(messages) - 1 do
-      for j := 0 to High(messages) - i - 1 do
-        if CompareStr(messages[j].key, messages[j + 1].key) > 0 then
-        begin
-          tmp := messages[j];
-          messages[j] := messages[j + 1];
-          messages[j + 1] := tmp;
-        end;
+    I := L;
+    J := R;
+    Pivot := A[(L + R) div 2];
+
+    repeat
+      while CompareStr(string(A[I].key), string(Pivot.key)) < 0 do Inc(I);
+      while CompareStr(string(A[J].key), string(Pivot.key)) > 0 do Dec(J);
+
+      if I <= J then
+      begin
+        Temp := A[I];
+        A[I] := A[J];
+        A[J] := Temp;
+        Inc(I);
+        Dec(J);
+      end;
+    until I > J;
+
+    if L < J then QuickSortTKEY(A, L, J);
+    if I < R then QuickSortTKEY(A, I, R);
   end;
 
-  procedure WriteWideStringAtPosition(msDat: TMemoryStream; const msg: WideString; pos: Cardinal);
+  procedure Gta2SortMessagesByTKEY(var messages: TGTAMessagesArray);
+  begin
+    if Length(messages) > 1 then
+      QuickSortTKEY(messages, 0, High(messages));
+  end;
+
+  procedure WriteWideStringAtPosition(msDat: TMemoryStream; const msg: WideString; pos: Int64);
   var
     requiredSize: Int64;
   begin
@@ -1015,7 +1049,7 @@ var
     gxtHead: TGTA2Header;
     secHead: TGTA2SectionHeader;
     sjis: word;
-    NeedAnsi: boolean;
+    SystemAnsiTarget: boolean;
   begin
     msKey := TMemoryStream.Create;
     msDat := TMemoryStream.Create;
@@ -1035,9 +1069,9 @@ var
         curkey := AnsiString(ZeroPad(string(messages[i].key), MAX_KEY_SIZE));
         msKey.Write(curkey[1], Length(curkey)*SizeOf(AnsiChar));
 
-        NeedAnsi := IsBob or StartsText('netui', string(Messages[i].key)); // do not localize
+        SystemAnsiTarget := IsBob or StartsText('netui', string(Messages[i].key)); // do not localize
 
-        if NeedAnsi and (Language <> LANG_J) then
+        if SystemAnsiTarget and (Language <> LANG_J) then
         begin
           if Language = LANG_R then
             msg := WideStringToCodePage16(messages[i].msg, CP_RUS)
@@ -1050,7 +1084,7 @@ var
           for j := Low(msg) to High(msg) do
           begin
             Sjis := Word(msg[j]);
-            if not (Sjis in [{ $0A, $0D, }$20]) and not NeedAnsi and not IsKanjiValid(KanjiIdx, Sjis) then
+            if not (Sjis in [{ $0A, $0D, }$20]) and not SystemAnsiTarget and not IsKanjiValid(KanjiIdx, Sjis) then
             begin
               // BUG IN J.GXT: SJIS 0x8140 : IDEOGRAPHIC SPACE (U+3000), not in Kanji.dat
               if Sjis = $8140 then
@@ -1096,7 +1130,7 @@ var
     end;
   end;
 
-  function LineToMessage(line: WideString; var m: TGTAMessage; var datPos: Cardinal): boolean;
+  function LineToMessage(line: WideString; var m: TGTAMessage; var datPos: Int64): boolean;
   var
     p: integer;
     key: AnsiString;
@@ -1297,7 +1331,7 @@ var
   messages: TGTAMessagesArray;
   fsOut: TFileStream;
   Lines: TArray<WideString>;
-  datPos: Cardinal;
+  datPos: Int64;
 begin
   Info := DetectFileEncoding(InFile, Language);
 
@@ -1435,87 +1469,83 @@ begin
   CompareFiles(TestDir + 'e.txt', TestDir + 'e2.txt');
   CompareFiles(TestDir + 'e.gxt', TestDir + 'e2.gxt');
 
-
-ReadLn;
-  exit; // TODO: sponge
-
   GxtToTxt(TestDir     + 'f.gxt',  TestDir + 'f.txt', false);
   TxtToGxt(TestDir     + 'f.txt',  TestDir + 'f2.gxt', LANG_F, false);
   GxtToTxt(TestDir     + 'f2.gxt', TestDir + 'f2.txt', false);
   CompareFiles(TestDir + 'f.txt',  TestDir + 'f2.txt');
-  //CompareFiles(TestDir + 'f.gxt', TestDir + 'f2.gxt');
+  CompareFiles(TestDir + 'f.gxt', TestDir + 'f2.gxt');
 
   GxtToTxt(TestDir     + 'g.gxt',  TestDir + 'g.txt', false);
   TxtToGxt(TestDir     + 'g.txt',  TestDir + 'g2.gxt', LANG_G, false);
   GxtToTxt(TestDir     + 'g2.gxt', TestDir + 'g2.txt', false);
   CompareFiles(TestDir + 'g.txt',  TestDir + 'g2.txt');
-  //CompareFiles(TestDir + 'g.gxt', TestDir + 'g2.gxt');
+  CompareFiles(TestDir + 'g.gxt', TestDir + 'g2.gxt');
 
   GxtToTxt(TestDir     + 'i.gxt',  TestDir + 'i.txt', false);
   TxtToGxt(TestDir     + 'i.txt',  TestDir + 'i2.gxt', LANG_I, false);
   GxtToTxt(TestDir     + 'i2.gxt', TestDir + 'i2.txt', false);
   CompareFiles(TestDir + 'i.txt',  TestDir + 'i2.txt');
-  //CompareFiles(TestDir + 'i.gxt', TestDir + 'i2.gxt');
+  CompareFiles(TestDir + 'i.gxt', TestDir + 'i2.gxt');
 
   GxtToTxt(TestDir + 'j.gxt', TestDir + 'j.txt', false);
   TxtToGxt(TestDir + 'j.txt', TestDir + 'j2.gxt', LANG_J, false);
   GxtToTxt(TestDir + 'j2.gxt', TestDir + 'j2.txt', false);
   CompareFiles(TestDir + 'j.txt', TestDir + 'j2.txt');
-  //CompareFiles(TestDir + 'j.gxt', TestDir + 'j2.gxt');
+  CompareFiles(TestDir + 'j.gxt', TestDir + 'j2.gxt'); // failure expected, since we silently fixed a few things
 
   GxtToTxt(TestDir     + 'r.gxt',  TestDir + 'r.txt', false);
   TxtToGxt(TestDir     + 'r.txt',  TestDir + 'r2.gxt', LANG_R, false);
   GxtToTxt(TestDir     + 'r2.gxt', TestDir + 'r2.txt', false);
   CompareFiles(TestDir + 'r.txt',  TestDir + 'r2.txt');
-  //CompareFiles(TestDir + 'r.gxt', TestDir + 'r2.gxt');
+  CompareFiles(TestDir + 'r.gxt', TestDir + 'r2.gxt');
 
   GxtToTxt(TestDir     + 's.gxt',  TestDir + 's.txt', false);
   TxtToGxt(TestDir     + 's.txt',  TestDir + 's2.gxt', LANG_S, false);
   GxtToTxt(TestDir     + 's2.gxt', TestDir + 's2.txt', false);
   CompareFiles(TestDir + 's.txt',  TestDir + 's2.txt');
-  //CompareFiles(TestDir + 's.gxt', TestDir + 's2.gxt');
+  CompareFiles(TestDir + 's.gxt', TestDir + 's2.gxt');
 
   GxtToTxt(TestDir + 'bob_e.gxt', TestDir + 'bob_e.txt', true);
   TxtToGxt(TestDir + 'bob_e.txt', TestDir + 'bob_e2.gxt', LANG_E, true);
   GxtToTxt(TestDir + 'bob_e2.gxt', TestDir + 'bob_e2.txt', true);
   CompareFiles(TestDir + 'bob_e.txt', TestDir + 'bob_e2.txt');
-  //CompareFiles(TestDir + 'bob_e.gxt', TestDir + 'bob_e2.gxt');
+  CompareFiles(TestDir + 'bob_e.gxt', TestDir + 'bob_e2.gxt');
 
   GxtToTxt(TestDir     + 'bob_f.gxt',  TestDir + 'bob_f.txt', true);
   TxtToGxt(TestDir     + 'bob_f.txt',  TestDir + 'bob_f2.gxt', LANG_F, true);
   GxtToTxt(TestDir     + 'bob_f2.gxt', TestDir + 'bob_f2.txt', true);
   CompareFiles(TestDir + 'bob_f.txt',  TestDir + 'bob_f2.txt');
-  //CompareFiles(TestDir + 'bob_f.gxt', TestDir + 'bob_f2.gxt');
+  CompareFiles(TestDir + 'bob_f.gxt', TestDir + 'bob_f2.gxt');
 
   GxtToTxt(TestDir     + 'bob_g.gxt',  TestDir + 'bob_g.txt', true);
   TxtToGxt(TestDir     + 'bob_g.txt',  TestDir + 'bob_g2.gxt', LANG_G, true);
   GxtToTxt(TestDir     + 'bob_g2.gxt', TestDir + 'bob_g2.txt', true);
   CompareFiles(TestDir + 'bob_g.txt',  TestDir + 'bob_g2.txt');
-  //CompareFiles(TestDir + 'bob_g.gxt', TestDir + 'bob_g2.gxt');
+  CompareFiles(TestDir + 'bob_g.gxt', TestDir + 'bob_g2.gxt');
 
   GxtToTxt(TestDir     + 'bob_i.gxt',  TestDir + 'bob_i.txt', true);
   TxtToGxt(TestDir     + 'bob_i.txt',  TestDir + 'bob_i2.gxt', LANG_I, true);
   GxtToTxt(TestDir     + 'bob_i2.gxt', TestDir + 'bob_i2.txt', true);
   CompareFiles(TestDir + 'bob_i.txt',  TestDir + 'bob_i2.txt');
-  //CompareFiles(TestDir + 'bob_i.gxt', TestDir + 'bob_i2.gxt');
+  CompareFiles(TestDir + 'bob_i.gxt', TestDir + 'bob_i2.gxt');
 
   GxtToTxt(TestDir + 'bob_j.gxt', TestDir + 'bob_j.txt', true);
   TxtToGxt(TestDir + 'bob_j.txt', TestDir + 'bob_j2.gxt', LANG_J, true);
   GxtToTxt(TestDir + 'bob_j2.gxt', TestDir + 'bob_j2.txt', true);
   CompareFiles(TestDir + 'bob_j.txt', TestDir + 'bob_j2.txt');
-  //CompareFiles(TestDir + 'bob_j.gxt', TestDir + 'bob_j2.gxt');
+  CompareFiles(TestDir + 'bob_j.gxt', TestDir + 'bob_j2.gxt'); // failure expected, since we silently fixed a few things
 
   GxtToTxt(TestDir     + 'bob_r.gxt',  TestDir + 'bob_r.txt', true);
   TxtToGxt(TestDir     + 'bob_r.txt',  TestDir + 'bob_r2.gxt', LANG_R, true);
   GxtToTxt(TestDir     + 'bob_r2.gxt', TestDir + 'bob_r2.txt', true);
   CompareFiles(TestDir + 'bob_r.txt',  TestDir + 'bob_r2.txt');
-  //CompareFiles(TestDir + 'bob_r.gxt', TestDir + 'bob_r2.gxt');
+  CompareFiles(TestDir + 'bob_r.gxt', TestDir + 'bob_r2.gxt');
 
   GxtToTxt(TestDir     + 'bob_s.gxt',  TestDir + 'bob_s.txt', true);
   TxtToGxt(TestDir     + 'bob_s.txt',  TestDir + 'bob_s2.gxt', LANG_S, true);
   GxtToTxt(TestDir     + 'bob_s2.gxt', TestDir + 'bob_s2.txt', true);
   CompareFiles(TestDir + 'bob_s.txt',  TestDir + 'bob_s2.txt');
-  //CompareFiles(TestDir + 'bob_s.gxt', TestDir + 'bob_s2.gxt');
+  CompareFiles(TestDir + 'bob_s.gxt', TestDir + 'bob_s2.gxt');
 
   {$IFDEF MSWINDOWS}
   WriteLn(S_PRESS_ANY_KEY);
