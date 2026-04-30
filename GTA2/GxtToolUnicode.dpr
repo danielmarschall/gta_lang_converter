@@ -63,6 +63,9 @@ resourcestring
 
 // --- GTA2 Specific
 
+var
+  gNoAutoFixes: boolean;
+
 const
   GXT_MAGIC = 'GBL';
   GXT_VER = 100;
@@ -803,9 +806,13 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
 
       s := string(PAnsiChar(@tkAry[i].key[0])); // stops at #0
 
-      // BUG IN BOB_J.GXT: They accidentally translated "/" (U+002F) to "／" (U+FF0F) in the key!
-      //                   Silently fix it by replacing it with "/"
-      s := StringReplace(s, #$81#$5E, '/', []);
+      // TODO: der key sollte widestring sein?!
+      if not gNoAutoFixes then
+      begin
+        // BUG IN BOB_J.GXT: They accidentally translated "/" (U+002F) to "／" (U+FF0F) in the key!
+        //                   Silently fix it by replacing it with "/"
+        s := StringReplace(s, #$81#$5E, '/', []);
+      end;
 
       result.Messages[i].key := AnsiString(s);
 
@@ -848,9 +855,15 @@ procedure GxtToTxt(const InFile, OutFile: string; IsBob: boolean);
 
         // BUG IN J.GXT: SJIS 0x8140 : IDEOGRAPHIC SP (U+3000), not in Kanji.dat
         for j := 1 to Length(result.Messages[i].msg) do
-          if Word(result.Messages[i].msg[j]) = $8140 then
-            if not SystemAnsiTarget and not IsKanjiValid(KanjiIdx, Word(result.Messages[i].msg[j])) then
-              result.Messages[i].msg[j] := ' '; // silently replace it with a regular whitespace
+        begin
+          if not gNoAutoFixes and
+             not SystemAnsiTarget and
+             (Word(result.Messages[i].msg[j]) = $8140) and
+             not IsKanjiValid(KanjiIdx, Word(result.Messages[i].msg[j])) then
+          begin
+            result.Messages[i].msg[j] := ' '; // silently replace it with a regular whitespace
+          end;
+        end;
 
         // Convert JSIS-16 to UTF-16
         result.Messages[i].msg := GameCodeToWideString_J(result.Messages[i].msg);
@@ -1086,7 +1099,7 @@ var
             if not (Sjis in [{ $0A, $0D, }$20]) and not SystemAnsiTarget and not IsKanjiValid(KanjiIdx, Sjis) then
             begin
               // BUG IN J.GXT: SJIS 0x8140 : IDEOGRAPHIC SPACE (U+3000), not in Kanji.dat
-              if Sjis = $8140 then
+              if not gNoAutoFixes and (Sjis = $8140) then
                 msg[j] := ' ' // silently fix it by replacing it with a normal space
               else
                 WriteLn(Format(S_IllegalKanji, ['0x' + IntToHex(Sjis, 4)]));
@@ -1150,12 +1163,16 @@ var
 
     p := Pos(']', line);
 
-    // BUG IN BOB_J.GXT: They accidentally translated "/" (U+002F) to "／" (U+FF0F) in the key!
-    //                   Silently fix it by replacing it with "/" 
     wkey := Copy(line, 2, p-2);
-    for i := 1 to Length(wkey) do
-      if wkey[i] = #$FF0F then
-        wkey[i] := '!';
+
+    if not gNoAutoFixes then
+    begin
+      // BUG IN BOB_J.GXT: They accidentally translated "/" (U+002F) to "／" (U+FF0F) in the key!
+      //                   Silently fix it by replacing it with "/"
+      for i := 1 to Length(wkey) do
+        if wkey[i] = #$FF0F then
+          wkey[i] := '/';
+    end;
 
     key := AnsiString(wkey);
 
@@ -1579,6 +1596,7 @@ var
   i: integer;
   RequirePause: boolean;
 begin
+  gNoAutoFixes := false;
   if ParamCount < 1 then
   begin
     RequirePause := true;
@@ -1589,10 +1607,14 @@ begin
     RequirePause := false;
     for i := 1 to ParamCount do
     begin
-      if ParamStr(i) = 'TEST' then
+      if ParamStr(i) = 'NO_AUTO_FIXES' then
+      begin
+        gNoAutoFixes := true;
+      end
+      else if ParamStr(i) = 'TEST' then
       begin
         try
-          Testcases
+          Testcases;
         except
           on E: Exception do
           begin
@@ -1602,7 +1624,7 @@ begin
         end;
       end
       else
-      ExpandAndProcess(ParamStr(i), RequirePause);
+        ExpandAndProcess(ParamStr(i), RequirePause);
     end;
   end;
 
@@ -1655,6 +1677,7 @@ begin
       Lang := ParamStr(3)[1]
     else
       Lang := GuessOrAskForLanguage(InFile);
+    gNoAutoFixes := (ParamCount >= 4) and (ParamStr(4) = 'NO_AUTO_FIXES');
     TxtToGxt(InFile, OutFile, Lang, IsBob);
   end
   else
