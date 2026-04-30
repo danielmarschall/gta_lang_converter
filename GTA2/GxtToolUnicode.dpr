@@ -1669,6 +1669,7 @@ begin
   Ext := LowerCase(ExtractFileExt(InFile));
   if Ext = '.gxt' then // do not localize
   begin
+    gNoAutoFixes := (ParamCount >= 3) and (ParamStr(3) = 'NO_AUTO_FIXES');
     GxtToTxt(InFile, OutFile, IsBob)
   end
   else if Ext = '.txt' then // do not localize
