@@ -853,6 +853,7 @@ begin
   CompareFiles(TestDir + 'FRENCH.TXT', TestDir + 'FRENCH2.TXT');
   CompareFiles(TestDir + 'FRENCH.FXT', TestDir + 'FRENCH2.FXT');
 
+  // FREUK.FXT is equal to ENGUK.FXT. The French translator probably had enough.
   (*
   FxtToTxt(TestDir + 'FREUK.FXT', TestDir + 'FREUK.TXT');
   TxtToFxt(TestDir + 'FREUK.TXT', TestDir + 'FREUK2.FXT', true);
