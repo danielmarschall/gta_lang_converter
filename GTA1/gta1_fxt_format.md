@@ -15,12 +15,14 @@ It has been thoroughly tested with all official FXT files, and converting from T
 It also detects illegal characters such as non-implemented European accent characters or Japanese Kanji characters which are not implemented in the game.  
 For this reason, this converter is as accurate and reliable as possible.
 
-[**Download for Windows**](FxtToolUnicode.exe)Usage: Just drag'n'drop an FXT or TXT file into the EXE. It will then create an converted FXT/TXT file in the same directory. Alternatively, use it via command line (cmd.exe).
+[**Download for Windows**](https://misc.daniel-marschall.de/spiele/gta1/downloads/FxtConverter/FxtToolUnicode.exe)
+Usage: Just drag'n'drop an FXT or TXT file into the EXE. It will then create an converted FXT/TXT file in the same directory.
+Alternatively, use it via command line (cmd.exe).
 
-**[Download for Linux](FxtToolUnicode)  
-**Usage: Call it in the shell. The arguments are a bit different than the Windows version. To converter Japanese, make sure that KANJI.IDX is present.
+[**Download for Linux**](https://misc.daniel-marschall.de/spiele/gta1/downloads/FxtConverter/FxtToolUnicode)  
+Usage: Call it in the shell. The arguments are a bit different than the Windows version. To converter Japanese, make sure that KANJI.IDX is present.
 
-**[Source code](https://github.com/danielmarschall/gta_lang_converter/GTA1)** for Delphi (Windows) and FreePascal (Linux)
+[**Source code**](https://github.com/danielmarschall/gta_lang_converter/GTA1) for Delphi (Windows) and FreePascal (Linux)
 
 * * *
 
@@ -69,7 +71,8 @@ All operations are performed in the ring ℤ/256ℤ (8-bit arithmetic).
 European Charset
 ----------------
 
-        0 1 2 3 4 5 6 7 8 9 A B C D E F
+```
+       0 1 2 3 4 5 6 7 8 9 A B C D E F
 C4 0x  ! À Á Â ! Ä ! Æ Ç È É Ê Ë Ì Í Î
 C4 1x  Ï ! ! Ò Ó Ô ! Ö ! ! Ù Ú Û Ü ! !
 C4 2x  ß à á â ! ä ! æ ç è é ê ë ì í î
@@ -86,7 +89,9 @@ C4 Cx  ! À Á Â ! Ä ! Æ Ç È É Ê Ë Ì Í Î
 C4 Dx  Ï ! ! Ò Ó Ô ! Ö ! ! Ù Ú Û Ü ! !
 C4 Ex  ß à á â ! ä ! æ ç è é ê ë ì í î
 C4 Fx  ï ! ! ò ó ô ! ö ! ! ù ú û ü ! !
+```
 
+```
        0 1 2 3 4 5 6 7 8 9 A B C D E F
 84 0x  ! À Á Â ! Ä ! Æ Ç È É Ê Ë Ì Í Î  (used in GTA London)
 84 1x  Ï ! ! Ò Ó Ô ! Ö ! ! Ù Ú Û Ü ! !  (used in GTA London)
@@ -104,6 +109,7 @@ C4 Fx  ï ! ! ò ó ô ! ö ! ! ù ú û ü ! !
 84 Dx  Ï ! ! Ò Ó Ô ! Ö ! ! Ù Ú Û Ü ! !
 84 Ex  ß à á â ! ä ! æ ç è é ê ë ì í î
 84 Fx  ï ! ! ò ó ô ! ö ! ! ù ú û ü ! !
+```
 
 Japanese translation
 --------------------
@@ -210,19 +216,21 @@ The rendering/lookup process for the FXT code `E9 8F 8E` is as follows:
 
 See also:
 
-*   [List of all Shift-JIS code points](shift_jis.txt)
-*   [List of all characters that have a valid glyph](kanji_valid.txt)
+*   [List of all Shift-JIS code points](https://misc.daniel-marschall.de/spiele/gta1/shift_jis.txt)
+*   [List of all characters that have a valid glyph](https://misc.daniel-marschall.de/spiele/gta1/kanji_valid.txt)
 
 Decoded contents
 ----------------
 
 The decoded contents look like this:
 
-\[1001\]Answer the South Park phones to get jobs. Keep your eyes open for opportunities. Remember - you mess up, we mess you up.
-\[1002\]Crazy Jimmy's dumped a car in North East Park. Find it before the cops do - or die.
-\[1003\]Bring the car to Dulli's in West Park. Move it! We got some fresh pussy here!
+```
+[1001]Answer the South Park phones to get jobs. Keep your eyes open for opportunities. Remember - you mess up, we mess you up.
+[1002]Crazy Jimmy's dumped a car in North East Park. Find it before the cops do - or die.
+[1003]Bring the car to Dulli's in West Park. Move it! We got some fresh pussy here!
+```
 
-The number at the beginning is the brief number that can be used in [mission.ini](mission_ini.html) scripts.
+The number at the beginning is the brief number that can be used in [mission.ini](https://misc.daniel-marschall.de/spiele/gta1/mission_ini.html) scripts.
 
 Footer
 ------
