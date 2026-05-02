@@ -1,6 +1,0 @@
-
-GTA1 FXT format
-===============
-
-More information can be found here:
-https://misc.daniel-marschall.de/spiele/gta1/format_fxt.html

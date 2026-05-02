@@ -114,7 +114,7 @@ Section type: TDAT (contains texts)
 
 * In the GAME language (e.gxt, g.gxt, etc.), a special character set is used for special characters:
 
-	For European GTA2 (Languages: E, F, G, I, S):
+  - For European GTA2 (Languages: E, F, G, I, S), the rendering is done in the *.sty files with the following charset:
 
 ```
 		0020	  ! " # $ % & ' ( ) * + , - . /
@@ -129,9 +129,7 @@ Section type: TDAT (contains texts)
 		00B0	¡
 ```
 
-		The rendering is done in the *.sty files.
-
-	For Russian GTA2 (Language: R)
+  - For Russian GTA2 (Language: R), the rendering is done in the *.sty files with the following charset:
 
 ```
 		0020	  ! " # $ % & ' ( ) * + , - . /
@@ -149,22 +147,22 @@ Section type: TDAT (contains texts)
 		00E0	ы в а п р о л д ж э я ч с м и т
 		00F0	ь б ю
 ```
-		What order do the russian characters have? It's the order of the JCUKEN keyboard keys!
+
+What order do the russian characters have? It's the order of the JCUKEN keyboard keys!
+
 ```
 		B1..D1	Ё ЙЦУКЕНГШЩЗХЪ ФЫВАПРОЛДЖЭ ЯЧСМИТЬБЮ
 		D2..F2	ё йцукенгшщзхъ фывапролджэ ячсмитьбю
 ```
     
-		The rendering is done in the *.sty files.
-
-	For Japanese GTA2 (Language: J)
+  - For Japanese GTA2 (Language: J)
 	
-		Each 16 bit character in the GXT file is either:
-		- An UTF-16 encoded ASCII character
-		- A Shift-JIS encoded character
-		- Single-byte characters are stored as xx00, while double-byte Shift-JIS characters are stored in a 16-bit code unit with swapped byte order.
+	Each 16 bit character in the GXT file is either:
+	- An UTF-16 encoded ASCII character
+	- A Shift-JIS encoded character
+	- Single-byte characters are stored as xx00, while double-byte Shift-JIS characters are stored in a 16-bit code unit with swapped byte order.
 
-		The rendering is done in the *.sty files, in addition with 16x16 glyphs implemented in Kanji.dat
+	The rendering is done in the *.sty files, in addition with 16x16 glyphs implemented in Kanji.dat
 
 * The GAME MANAGER Language (bob_*.gxt) as well as the "netui" keys in the main language file contain characters in the ANSI encoding:
 
@@ -202,7 +200,7 @@ Section type: TDAT (contains texts)
 		0090	ÔÖÙÚÛÜßàáâäæçèéê
 		00A0	ëìíîïòóôöùúûüÑñ¿
 		00B0	¡
-		```
+```
 
 Kanji.dat
 =========
