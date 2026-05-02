@@ -117,42 +117,42 @@ Section type: TDAT (contains texts)
   - For European GTA2 (Languages: E, F, G, I, S), the rendering is done in the *.sty files with the following charset:
 
 ```
-		0020	  ! " # $ % & ' ( ) * + , - . /
-		0030	0 1 2 3 4 5 6 7 8 9 : ; < = > ?
-		0040	@ A B C D E F G H I J K L M N O
-		0050	P Q R S T U V W X Y Z [ \ ] ^ _
-		0060	´ a b c d e f g h i j k l m n o
-		0070	p q r s t u v w x y z { | } ~  
-		0080	À Á Â Ä Æ Ç È É Ê Ë Ì Í Î Ï Ò Ó
-		0090	Ô Ö Ù Ú Û Ü ß à á â ä æ ç è é ê
-		00A0	ë ì í î ï ò ó ô ö ù ú û ü Ñ ñ ¿
-		00B0	¡
+0020	  ! " # $ % & ' ( ) * + , - . /
+0030	0 1 2 3 4 5 6 7 8 9 : ; < = > ?
+0040	@ A B C D E F G H I J K L M N O
+0050	P Q R S T U V W X Y Z [ \ ] ^ _
+0060	´ a b c d e f g h i j k l m n o
+0070	p q r s t u v w x y z { | } ~  
+0080	À Á Â Ä Æ Ç È É Ê Ë Ì Í Î Ï Ò Ó
+0090	Ô Ö Ù Ú Û Ü ß à á â ä æ ç è é ê
+00A0	ë ì í î ï ò ó ô ö ù ú û ü Ñ ñ ¿
+00B0	¡
 ```
 
   - For Russian GTA2 (Language: R), the rendering is done in the *.sty files with the following charset:
 
 ```
-		0020	  ! " # $ % & ' ( ) * + , - . /
-		0030	0 1 2 3 4 5 6 7 8 9 : ; < = > ?
-		0040	@ A B C D E F G H I J K L M N O
-		0050	P Q R S T U V W X Y Z [ \ ] ^ _
-		0060	´ a b c d e f g h i j k l m n o
-		0070	p q r s t u v w x y z { | } ~ 
-		0080	À Á Â Ä Æ Ç È É Ê Ë Ì Í Î Ï Ò Ó
-		0090	Ô Ö Ù Ú Û Ü ß à á â ä æ ç è é ê
-		00A0	ë ì í î ï ò ó ô ö ù ú û ü Ñ ñ ¿
-		00B0	¡ Ё Й Ц У К Е Н Г Ш Щ З Х Ъ Ф Ы
-		00C0	В А П Р О Л Д Ж Э Я Ч С М И Т Ь
-		00D0	Б Ю ё й ц у к е н г ш щ з х ъ ф
-		00E0	ы в а п р о л д ж э я ч с м и т
-		00F0	ь б ю
+0020	  ! " # $ % & ' ( ) * + , - . /
+0030	0 1 2 3 4 5 6 7 8 9 : ; < = > ?
+0040	@ A B C D E F G H I J K L M N O
+0050	P Q R S T U V W X Y Z [ \ ] ^ _
+0060	´ a b c d e f g h i j k l m n o
+0070	p q r s t u v w x y z { | } ~ 
+0080	À Á Â Ä Æ Ç È É Ê Ë Ì Í Î Ï Ò Ó
+0090	Ô Ö Ù Ú Û Ü ß à á â ä æ ç è é ê
+00A0	ë ì í î ï ò ó ô ö ù ú û ü Ñ ñ ¿
+00B0	¡ Ё Й Ц У К Е Н Г Ш Щ З Х Ъ Ф Ы
+00C0	В А П Р О Л Д Ж Э Я Ч С М И Т Ь
+00D0	Б Ю ё й ц у к е н г ш щ з х ъ ф
+00E0	ы в а п р о л д ж э я ч с м и т
+00F0	ь б ю
 ```
 
 What order do the russian characters have? It's the order of the JCUKEN keyboard keys!
 
 ```
-		B1..D1	Ё ЙЦУКЕНГШЩЗХЪ ФЫВАПРОЛДЖЭ ЯЧСМИТЬБЮ
-		D2..F2	ё йцукенгшщзхъ фывапролджэ ячсмитьбю
+B1..D1	Ё ЙЦУКЕНГШЩЗХЪ ФЫВАПРОЛДЖЭ ЯЧСМИТЬБЮ
+D2..F2	ё йцукенгшщзхъ фывапролджэ ячсмитьбю
 ```
     
   - For Japanese GTA2 (Language: J)
@@ -176,30 +176,30 @@ What order do the russian characters have? It's the order of the JCUKEN keyboard
 * The inofficial [polish version](https://archive.org/details/grand-theft-auto-2-zlota-edycja-poland) replaces the English language (e.gxt, bob_e.gxt). To implement the additional polish characters, unused characters in the default charset are changed in the *.sty files as follows:
 
 ```
-		" <=> ą
-		% <=> ś
-		( <=> ź
-		) <=> ż
-		* <=> ć
-		/ <=> ę
-		; <=> ł
-		q <=> ó
-		~ <=> ń
+" <=> ą
+% <=> ś
+( <=> ź
+) <=> ż
+* <=> ć
+/ <=> ę
+; <=> ł
+q <=> ó
+~ <=> ń
 ```
 
-	Hence, the charmap of the Polish version is:
+  Hence, the charmap of the Polish version is:
 
 ```
-		0020	 !ą#$ś&'źżć+,-.ę
-		0030	0123456789:ł<=>?
-		0040	@ABCDEFGHIJKLMNO
-		0050	PQRSTUVWXYZ[\]^_
-		0060	´abcdefghijklmno
-		0070	pórstuvwxyz{|}ń 
-		0080	ÀÁÂÄÆÇÈÉÊËÌÍÎÏÒÓ
-		0090	ÔÖÙÚÛÜßàáâäæçèéê
-		00A0	ëìíîïòóôöùúûüÑñ¿
-		00B0	¡
+0020	  ! ą # $ ś & ' ź ż ć + , - . ę
+0030	0 1 2 3 4 5 6 7 8 9 : ł < = > ?
+0040	@ A B C D E F G H I J K L M N O
+0050	P Q R S T U V W X Y Z [ \ ] ^ _
+0060	´ a b c d e f g h i j k l m n o
+0070	p ó r s t u v w x y z { | } ń  
+0080	À Á Â Ä Æ Ç È É Ê Ë Ì Í Î Ï Ò Ó
+0090	Ô Ö Ù Ú Û Ü ß à á â ä æ ç è é ê
+00A0	ë ì í î ï ò ó ô ö ù ú û ü Ñ ñ ¿
+00B0	¡
 ```
 
 Kanji.dat
@@ -236,6 +236,7 @@ Section
 char[4]	<section type name>, "KIDX" or "KBIT"
 int32	length of <section content>
 ```
+
 Section type: KIDX (index of Kanji characters)
 ----------------------------------------------
 
